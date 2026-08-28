@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <LangVersion>latest</LangVersion>
+        <EnableDynamicLoading>true</EnableDynamicLoading>
+        <CreateSrpx>true</CreateSrpx>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- 算法核心库：随插件打包进 srpx -->
+        <ProjectReference Include="..\SecRandom.NewAlgorithm\SecRandom.NewAlgorithm.csproj" />
+        <!-- 本地源码引用 SDK；CI 发布后也可换成 NuGet 包引用 SecRandom.PluginSdk -->
+        <ProjectReference Include="..\..\SecRandom\SecRandom.PluginSdk\SecRandom.PluginSdk.csproj">
+            <ExcludeAssets>runtime;native</ExcludeAssets>
+        </ProjectReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Update="manifest.yml">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="icon.png">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
+    <!-- NuGet 包引用会自动导入此 targets；本地 ProjectReference 需显式导入 -->
+    <Import Project="..\..\SecRandom\SecRandom.PluginSdk\SecRandom.PluginSdk.targets" />
+
+</Project>

@@ -1,0 +1,51 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:fa="clr-namespace:FluentAvalonia.UI.Controls;assembly=FluentAvalonia"
+             xmlns:sr="http://secrandom.sectl.cn/schemas/xaml/core"
+             xmlns:page="clr-namespace:SecRandom.NewAlgorithm.Plugin.Views.SettingsPages"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="SecRandom.NewAlgorithm.Plugin.Views.SettingsPages.NewAlgorithmSettingsPage"
+             x:DataType="page:NewAlgorithmSettingsPage">
+    <ScrollViewer>
+        <StackPanel Classes="page-container">
+
+            <fa:FASettingsExpander Header="个人视野轮数"
+                                   Description="个人欠账的时间尺度（该值 × 池内人数）：越小越快把超支的人压回保底，越大越接近纯随机。默认 2.0"
+                                   IconSource="{sr:FluentIconSource {sr:Fi PersonFilled}}">
+                <fa:FASettingsExpander.Footer>
+                    <NumericUpDown Value="{Binding PersonalHorizonRoundsValue, Mode=TwoWay}"
+                                   Minimum="0.1" Maximum="100" Increment="0.1" FormatString="0.0#"
+                                   MinWidth="160" />
+                </fa:FASettingsExpander.Footer>
+            </fa:FASettingsExpander>
+
+            <fa:FASettingsExpander Header="随机保底份额"
+                                   Description="任何学生的最低被抽概率 = 该值 ÷ 池内人数，同时稀释权重差异。默认 0.10"
+                                   IconSource="{sr:FluentIconSource {sr:Fi ShieldTaskFilled}}">
+                <fa:FASettingsExpander.Footer>
+                    <NumericUpDown Value="{Binding RandomFloorValue, Mode=TwoWay}"
+                                   Minimum="0" Maximum="0.99" Increment="0.01" FormatString="0.00"
+                                   MinWidth="160" />
+                </fa:FASettingsExpander.Footer>
+            </fa:FASettingsExpander>
+
+            <fa:FASettingsExpander Header="分组/性别维度视野系数"
+                                   Description="维度欠账的宽容度：该值越小，对分组/性别比例失衡的纠正越激进。默认 0.80"
+                                   IconSource="{sr:FluentIconSource {sr:Fi GroupFilled}}">
+                <fa:FASettingsExpander.Footer>
+                    <NumericUpDown Value="{Binding HorizonPerPickValue, Mode=TwoWay}"
+                                   Minimum="0.05" Maximum="100" Increment="0.1" FormatString="0.00"
+                                   MinWidth="160" />
+                </fa:FASettingsExpander.Footer>
+            </fa:FASettingsExpander>
+
+            <fa:FASettingsExpander Header="逐人调整（内幕设置 / 欠账份额上限）"
+                                   Description="名单管理中每个学生的附加设置提供两处杠杆：「内幕设置」按权重强制调整（0 为不参与，100 为必中）；「欠账份额上限」同时是份额倍数与个人抽取次数上限（抽满即移出候选池），未启用为 1 且无个人上限"
+                                   IconSource="{sr:FluentIconSource {sr:Fi BookNumberFilled}}">
+            </fa:FASettingsExpander>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

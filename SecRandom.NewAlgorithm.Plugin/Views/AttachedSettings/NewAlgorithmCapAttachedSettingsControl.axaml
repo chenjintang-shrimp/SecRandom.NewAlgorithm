@@ -1,0 +1,25 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:sr="http://secrandom.sectl.cn/schemas/xaml/core"
+             xmlns:local="clr-namespace:SecRandom.NewAlgorithm.Plugin.Views.AttachedSettings"
+             mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+             x:Class="SecRandom.NewAlgorithm.Plugin.Views.AttachedSettings.NewAlgorithmCapAttachedSettingsControl"
+             x:DataType="local:NewAlgorithmCapAttachedSettingsControl"
+             x:Name="RootControl">
+    <StackPanel Spacing="6"
+                DataContext="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=local:NewAlgorithmCapAttachedSettingsControl}}">
+        <sr:Field Label="抽取份额（Cap）">
+            <NumericUpDown Value="{Binding ShareCapValue, Mode=TwoWay}"
+                           Minimum="1"
+                           Maximum="1000"
+                           Increment="1"
+                           FormatString="0"
+                           MinWidth="140" />
+        </sr:Field>
+        <TextBlock Text="欠账份额 = Cap ÷ 全池 Cap 之和；同时是该生的个人抽取次数上限——抽中次数达到 Cap 后不再进入候选池（相当于半重复阈值的逐人版本）。未启用时按 1 与所有人等份额、无个人上限。仅对选用「份额欠账均衡」算法时的抽取生效"
+                   TextWrapping="Wrap"
+                   Opacity="0.6" />
+    </StackPanel>
+</UserControl>

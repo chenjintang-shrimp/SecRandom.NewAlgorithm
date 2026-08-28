@@ -1,0 +1,7 @@
+id: secrandom.newalgorithm
+name: 份额欠账均衡点名
+description: 基于份额欠账模型的均衡抽取算法：个人层欠账 + 分组/性别维度欠账，带随机保底
+entranceAssembly: SecRandom.NewAlgorithm.Plugin.dll
+apiVersion: 3.0.0
+version: 1.0.0
+author: SECTL
