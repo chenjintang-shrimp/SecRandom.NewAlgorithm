@@ -34,6 +34,11 @@ public sealed record SimulationConfig
     /// 单元素数组 = 不做性别均衡。
     /// </summary>
     public int[] GenderGroupSizes { get; init; } = [20, 20];
+    /// <summary>
+    /// 逐人倍率覆盖 (Id → 爆率倍率)；未覆盖的学生 Multiplier = 1.0。
+    /// 倍率通过 share = Multiplier ÷ ΣMultiplier 长期精确生效。
+    /// </summary>
+    public IReadOnlyDictionary<int, double> MultiplierOverrides { get; init; } = new Dictionary<int, double>();
 
     public void Validate()
     {
@@ -59,17 +64,43 @@ public sealed record SimulationConfig
         if (sum != StudentCount)
             throw new ArgumentException(
                 $"分组人数之和 {sum} 必须等于学生总数 {StudentCount}", nameof(GenderGroupSizes));
+
+        foreach (var (id, multiplier) in MultiplierOverrides)
+        {
+            if (id < 0 || id >= StudentCount)
+                throw new ArgumentException($"倍率覆盖的 Id {id} 超出 0..{StudentCount - 1}", nameof(MultiplierOverrides));
+            if (multiplier <= 0.0 || double.IsNaN(multiplier) || double.IsInfinity(multiplier))
+                throw new ArgumentException($"学生 {id} 的倍率 {multiplier} 必须为正的有限值", nameof(MultiplierOverrides));
+        }
     }
 
-    /// <summary>按分组连续分配 Id 与标签。</summary>
+    /// <summary>按分组连续分配 Id 与标签，应用逐人倍率覆盖与生效 Cap。</summary>
     public StudentMetaData[] BuildStudents()
     {
         var students = new StudentMetaData[StudentCount];
         int id = 0;
         for (int group = 0; group < GenderGroupSizes.Length; group++)
         for (int i = 0; i < GenderGroupSizes[group]; i++, id++)
-            students[id] = new StudentMetaData(id, Cap, [group]);
+        {
+            double multiplier = MultiplierOverrides.GetValueOrDefault(id, 1.0);
+            students[id] = new StudentMetaData(id, EffectiveCap(multiplier), multiplier, [group]);
+        }
         return students;
+    }
+
+    /// <summary>
+    /// 生效 Cap = ⌈基础 Cap × 倍率⌉：倍率越高同期可抽次数上限同步放大，
+    /// 两个参数因此正交（倍率管长期频率，Cap 只做防失控阀门）。
+    /// </summary>
+    public int EffectiveCap(double multiplier) => Math.Max(1, (int)Math.Ceiling(Cap * multiplier));
+
+    /// <summary>每周期应抽总数 = Σ⌈Cap × 倍率ᵢ⌉。</summary>
+    public long DrawsPerCycle()
+    {
+        long total = 0;
+        for (int id = 0; id < StudentCount; id++)
+            total += EffectiveCap(MultiplierOverrides.GetValueOrDefault(id, 1.0));
+        return total;
     }
 
     public WeightSettings BuildWeightSettings() => new()

@@ -7,15 +7,20 @@ namespace SecRandom.NewAlgorithm;
 /// 学生编号/标识
 /// </param>
 /// <param name="Cap">
-/// 本周期内最多被抽中几次（可以用于暗改爆率）
+/// 纯安全阀：本周期内最多被抽中几次。只参与调用方的池过滤（count &lt; Cap），
+/// 完全不进权重计算；未触到时完全惰性
+/// </param>
+/// <param name="Multiplier">
+/// 爆率倍率：1.0 = 基准，2.0 = 长期被点频率翻倍。
+/// 通过 share = Multiplier ÷ ΣMultiplier 进入欠账模型，连续可调、长期精确生效
 /// </param>
 /// <param name="Labels">
 /// 需要做均衡的分类维度，用整数。例如：
 /// [1,2,3] 代表在维度0属于1，在第维度1属于2，在第维度2属于3
 /// </param>
-public sealed record StudentMetaData(int Id, int Cap, int[] Labels)
+public sealed record StudentMetaData(int Id, int Cap, double Multiplier, int[] Labels)
 {
-    public StudentMetaData(int id, int cap) : this(Id: id, Cap: cap, []) { }
+    public StudentMetaData(int id, double multiplier) : this(Id: id, Cap: 0, Multiplier: multiplier, []) { }
 }
 
 /// <summary>

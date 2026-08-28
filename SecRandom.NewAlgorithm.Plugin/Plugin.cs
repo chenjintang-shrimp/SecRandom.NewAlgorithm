@@ -19,6 +19,6 @@ public sealed class Plugin : PluginBase
             "newalgorithm.debtshare",
             "份额欠账均衡");
         services.AddSettingsPage<NewAlgorithmSettingsPage>("份额欠账算法设置");
-        services.AddAttachedSettingsControl<NewAlgorithmCapAttachedSettingsControl>("欠账份额上限");
+        services.AddAttachedSettingsControl<NewAlgorithmCapAttachedSettingsControl>("个人抽取上限");
     }
 }

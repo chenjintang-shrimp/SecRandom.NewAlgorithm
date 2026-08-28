@@ -4,8 +4,8 @@ using SecRandom.Shared.Interfaces;
 namespace SecRandom.NewAlgorithm.Plugin;
 
 /// <summary>
-///     Per-student attached setting for the share-debt algorithm: the student's share cap
-///     (欠账份额上限). The host's attached-settings presenter persists this through the profile
+///     Per-student attached setting for the share-debt algorithm: the student's base draw cap
+///     (个人抽取次数上限, 随内幕倍率放大). The host's attached-settings presenter persists this through the profile
 ///     like any other attached settings entry; it must stay observable so edits trigger
 ///     write-back (see AttachedSettingsControlPresenter).
 /// </summary>
@@ -16,7 +16,10 @@ public partial class NewAlgorithmStudentAttachedSettings : ObservableObject, IAt
     [ObservableProperty]
     private bool _isAttachSettingsEnabled;
 
-    /// <summary>欠账份额 Cap：share = Cap ÷ ΣCap，默认 1（与所有人等份额）</summary>
+    /// <summary>
+    ///     基础抽取次数上限：该生累计被抽次数达到 ⌈基础 × 内幕倍率⌉ 后移出候选池。
+    ///     纯安全阀，不进权重；默认 1，未启用时无个人上限
+    /// </summary>
     [ObservableProperty]
-    private double _shareCap = 1;
+    private double _baseCap = 1;
 }

@@ -20,17 +20,17 @@ public partial class NewAlgorithmCapAttachedSettingsControl :
         InitializeComponent();
     }
 
-    public double? ShareCapValue
+    public double? BaseCapValue
     {
-        get => Settings.ShareCap;
+        get => Settings.BaseCap;
         set
         {
             var cap = Math.Clamp(value ?? 1, 1, 1000);
-            if (Math.Abs(Settings.ShareCap - cap) < double.Epsilon)
+            if (Math.Abs(Settings.BaseCap - cap) < double.Epsilon)
                 return;
 
-            Settings.ShareCap = cap;
-            OnPropertyChanged(nameof(ShareCapValue));
+            Settings.BaseCap = cap;
+            OnPropertyChanged(nameof(BaseCapValue));
         }
     }
 

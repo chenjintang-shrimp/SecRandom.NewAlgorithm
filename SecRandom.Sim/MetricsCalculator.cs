@@ -23,8 +23,8 @@ public static class MetricsCalculator
         var  entries   = result.Entries;
         int  n         = config.StudentCount;
         int  cycles    = config.Cycles;
-        int  cap       = config.Cap;
-        int  dpc       = n * cap;                       // 每周期应抽总数
+        var  caps      = result.Students.Select(s => s.Cap).ToArray();   // 生效 Cap = ⌈Cap × 倍率⌉
+        long dpc       = caps.Select(c => (long)c).Sum();                // 每周期应抽总数
         var  perCycle  = new int[cycles, n];            // 周期×学生计数
         var  cycleRows = new int[cycles];
         long degraded  = 0;
@@ -50,31 +50,33 @@ public static class MetricsCalculator
             }
         }
 
-        int minPerCycle = int.MaxValue, maxPerCycle = int.MinValue;
+        int minDelta = int.MaxValue, maxDelta = int.MinValue;   // 实测 − 生效Cap 的偏差
+        bool noOverCap = true;
         for (int c = 0; c < cycles; c++)
         for (int s = 0; s < n; s++)
         {
-            minPerCycle = Math.Min(minPerCycle, perCycle[c, s]);
-            maxPerCycle = Math.Max(maxPerCycle, perCycle[c, s]);
+            int delta = perCycle[c, s] - caps[s];
+            minDelta  = Math.Min(minDelta, delta);
+            maxDelta  = Math.Max(maxDelta, delta);
+            if (delta > 0) noOverCap = false;
         }
-        if (entries.Count == 0) { minPerCycle = 0; maxPerCycle = 0; }
+        if (entries.Count == 0) { minDelta = 0; maxDelta = 0; }
 
-        bool capExact   = minPerCycle == cap && maxPerCycle == cap;
-        bool noOverCap  = maxPerCycle <= cap;
+        bool capExact   = minDelta == 0 && maxDelta == 0;
         bool totalsOk   = cycleRows.All(row => row == dpc);
         bool batchDistinct = CheckBatchDistinct(entries);
 
         var hard = new List<HardCheck>
         {
-            new("每人每周期被抽次数 == Cap",
+            new("每人每周期被抽次数 == 生效 Cap (⌈Cap×倍率⌉)",
                 capExact,
-                Expected: $"每人恰好 {cap} 次",
-                Actual:   $"min={minPerCycle}, max={maxPerCycle}"),
-            new("无人超过 Cap",
+                Expected: "每人恰好本人生效 Cap 次",
+                Actual:   $"偏差 min={minDelta}, max={maxDelta}"),
+            new("无人超过生效 Cap",
                 noOverCap,
-                Expected: $"max ≤ {cap}",
-                Actual:   $"max={maxPerCycle}"),
-            new("每周期抽取总数 == 人数 × Cap",
+                Expected: "偏差 max ≤ 0",
+                Actual:   $"偏差 max={maxDelta}"),
+            new("每周期抽取总数 == Σ生效 Cap",
                 totalsOk,
                 Expected: $"{dpc}",
                 Actual:   cycleRows.Length == 0 ? "(无数据)"
@@ -117,31 +119,46 @@ public static class MetricsCalculator
             if (entries[i].PickedId == entries[i - 1].PickedId) adjacent++;
         }
         stats.Add(new StatEntry("相邻同人率", adjacentTotal == 0 ? "n/a" : Ratio(adjacent, adjacentTotal)));
-
-        // 同一人两次被抽的间隔 (仅 Cap ≥ 2 时有意义)
-        if (config.Cap >= 2)
+        // 相邻异性别率 (性别交替率 P(A)): 相邻两抽组别不同的比例, 全局依次计算。
+        // 期望出自 RandomFloor 的交替率公式 P(A) = 1/2 + (1−f)² / (2(2−f))
+        if (config.GenderGroupSizes.Length > 1)
         {
-            long gapSum = 0; int gapMin = int.MaxValue, gapMax = int.MinValue, gapCount = 0;
-            var lastSeen = new int[n];
-            for (int c = 0; c < config.Cycles; c++)
+            var genderOf = result.Students.ToDictionary(s => s.Id, s => s.Labels[0]);
+            long cross = 0, crossTotal = 0;
+            for (int i = 1; i < entries.Count; i++)
             {
-                Array.Fill(lastSeen, -1);
-                foreach (var e in entries)
-                {
-                    if (e.CycleIndex != c) continue;
-                    if (lastSeen[e.PickedId] >= 0)
-                    {
-                        int gap = e.DrawIndexInCycle - lastSeen[e.PickedId];
-                        gapSum += gap; gapCount++;
-                        gapMin = Math.Min(gapMin, gap);
-                        gapMax = Math.Max(gapMax, gap);
-                    }
-                    lastSeen[e.PickedId] = e.DrawIndexInCycle;
-                }
+                crossTotal++;
+                if (genderOf[entries[i].PickedId] != genderOf[entries[i - 1].PickedId]) cross++;
             }
-            if (gapCount > 0)
-                stats.Add(new StatEntry("同人再抽间隔 (mean/min/max)",
-                    $"{(double)gapSum / gapCount:F1} / {gapMin} / {gapMax}"));
+            if (crossTotal > 0)
+            {
+                double floor = config.RandomFloor;
+                double expectedPA = 0.5 + (1 - floor) * (1 - floor) / (2 * (2 - floor));
+                stats.Add(new StatEntry("相邻异性别率 (期望≈" + expectedPA.ToString("P1", CultureInfo.InvariantCulture) + ")",
+                    Ratio(cross, crossTotal)));
+            }
+        }
+
+        // 同一人两次被抽的间隔, 跨周期按全局序号计算 (学生感知不分周期),
+        // 分位数比 min/max 更有区分度 (min 恒为 1); 另附精确刺激度指标 P(间隔=1)
+        {
+            var gaps = new List<double>(entries.Count);
+            var lastSeen = new int[n];
+            Array.Fill(lastSeen, -1);
+            foreach (var e in entries)
+            {
+                if (lastSeen[e.PickedId] >= 0)
+                    gaps.Add(e.GlobalIndex - lastSeen[e.PickedId]);
+                lastSeen[e.PickedId] = e.GlobalIndex;
+            }
+            if (gaps.Count > 0)
+            {
+                gaps.Sort();
+                long ones = gaps.Count(gap => gap <= 1);
+                stats.Add(new StatEntry("同人再抽间隔 p50/p95/max (跨周期)",
+                    $"{gaps[(int)((gaps.Count - 1) * 0.50)]:F0} / {gaps[(int)((gaps.Count - 1) * 0.95)]:F0} / {gaps[^1]:F0}"));
+                stats.Add(new StatEntry("P(间隔 = 1) (跨周期)", Ratio(ones, gaps.Count)));
+            }
         }
 
         // 性别组占比: 累计实际占比 vs 卡占比的最大偏差
@@ -150,15 +167,18 @@ public static class MetricsCalculator
         {
             int[] groupIds = new int[n];
             foreach (var s in result.Students) groupIds[s.Id] = s.Labels[0];
+            // 期望占比 = 该组倍率之和 ÷ 全池倍率 (覆盖后的真实长期目标份额)
+            double multiplierTotal = result.Students.Sum(s => s.Multiplier);
             var expected = new double[groups];
-            for (int s = 0; s < n; s++) expected[groupIds[s]] += (double)config.Cap / (n * config.Cap);
+            for (int s = 0; s < n; s++)
+                expected[groupIds[s]] += result.Students[s].Multiplier / multiplierTotal;
             var cum = new long[groups];
             double worst = 0.0; int worstG = -1; long worstAt = 0;
             for (int i = 0; i < entries.Count; i++)
             {
                 cum[groupIds[entries[i].PickedId]]++;
                 long total = i + 1;
-                if (total < n * config.Cap) continue;   // 首个周期样本太少, 偏差全是噪声
+                if (total < config.DrawsPerCycle()) continue;   // 首个周期样本太少, 偏差全是噪声
                 for (int g = 0; g < groups; g++)
                 {
                     double dev = Math.Abs((double)cum[g] / total - expected[g]);

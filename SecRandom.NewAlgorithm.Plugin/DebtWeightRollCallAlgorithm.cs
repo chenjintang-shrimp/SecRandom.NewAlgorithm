@@ -10,16 +10,18 @@ namespace SecRandom.NewAlgorithm.Plugin;
 
 /// <summary>
 ///     Adapts the standalone share-debt weighting engine (SecRandom.NewAlgorithm) to the host
-///     roll-call pipeline. The contract only allows emitting weighted candidates; winner
-///     selection stays in the host's <see cref="WeightedDrawEngine{TCandidate}" /> and the
-///     draw commit/verification pipeline is untouched.
-///     Per-student rigging reuses the host's built-in 内幕设置 (BehindScene) attached settings:
-///     0 excludes the student from the pool, 100 means 必中, intermediate values scale the
-///     weight to p × the average fair weight.
+///     roll-call pipeline. Contract: emit weighted candidates only; winner selection, commit and
+///     verification stay in the host pipeline.
+///     Two orthogonal per-student levers, both surfaced through existing host UI:
+///     内幕设置 (BehindScene attached settings) supplies the long-term frequency Multiplier —
+///     0 excludes, 100 forces （必中）, intermediate p enters the engine as share multiplier p;
+///     the plugin's 个人抽取上限 attached setting supplies the base Cap, a pure safety valve:
+///     once a student's <c>History.TotalCount</c> reaches ⌈Cap × Multiplier⌉ they leave the pool
+///     (per-student half-repeat threshold), with zero effect on weights otherwise.
 /// </summary>
 public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options) : IRollCallAlgorithm
 {
-    // Reuses the host's 内幕设置 attached-settings id so the existing per-student/probability
+    // Reuses the host's 内幕设置 attached-settings id so the existing per-student probability
     // control drives this algorithm's rigging without shipping another UI.
     private static readonly Guid s_behindSceneId = Guid.Parse(GlobalConstants.BehindSceneAttachedSettings);
     private static readonly Guid s_capId = Guid.Parse(NewAlgorithmStudentAttachedSettings.AttachedSettingsId);
@@ -32,6 +34,8 @@ public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options
     // 必中 (p = 100) cannot pre-allocate a slot through a weights-only interface; a weight this
     // large makes non-guaranteed candidates lose every draw position it participates in.
     private const double GuaranteedWeight = 1e9;
+
+    private sealed record StudentLever(double Multiplier, int? BaseCap, bool Excluded, bool Guaranteed);
 
     public IReadOnlyList<WeightedCandidate<Student>> BuildCandidates(
         DrawEngine engine,
@@ -52,12 +56,9 @@ public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options
             Dimensions = BuildDimensions(fairSettings, opts.DimensionHorizonPerPick)
         };
 
-        // Pass 1: resolve per-student levers. Rigged students (enabled 内幕设置) leave the fair
-        // pool entirely; Cap doubles as a per-student half-repeat threshold measured against the
-        // same History.TotalCount the engine's repeat filter uses — a student at their cap is
-        // saturated, leaves the pool, and gets weight 0 (shares rebalance to everyone else).
-        var rig = new BehindSceneAttachedSettings?[poolSize];
-        var caps = new int[poolSize];
+        // Pass 1: resolve levers. Multiplier-rigged students stay in the pool (their share enters
+        // the debt engine); only excluded/guaranteed/saturated students leave it.
+        var levers = new StudentLever?[poolSize];
         var cycleCounts = new int[poolSize];
         var fairOrdinalByIndex = new int[poolSize];
         var fairIndexes = new List<int>(poolSize);
@@ -67,27 +68,20 @@ public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options
             cycleCounts[i] = history.TryGetValue(student, out var record) ? Math.Max(0, record.TotalCount) : 0;
             fairOrdinalByIndex[i] = -1;
 
-            var scene = student.GetAttachedObject<BehindSceneAttachedSettings>(s_behindSceneId);
-            if (scene is { IsAttachSettingsEnabled: true })
-            {
-                rig[i] = new BehindSceneAttachedSettings
-                {
-                    IsAttachSettingsEnabled = true,
-                    Probability = Math.Clamp(scene.Probability, 0, 100)
-                };
-                continue;
-            }
-
-            var cap = GetConfiguredCap(student);
-            if (cap is not null && cycleCounts[i] >= cap.Value)
+            var lever = ResolveLever(student);
+            levers[i] = lever;
+            if (lever.Excluded || lever.Guaranteed)
                 continue;
 
-            caps[i] = cap ?? 1;
+            // 生效上限 = ⌈基础 Cap × 倍率⌉：倍率管长期频率，Cap 只做防失控阀门，两者正交
+            if (lever.BaseCap is { } baseCap && cycleCounts[i] >= Math.Max(1, Math.Ceiling(baseCap * lever.Multiplier)))
+                continue;
+
             fairOrdinalByIndex[i] = fairIndexes.Count;
             fairIndexes.Add(i);
         }
 
-        // Pass 2: compute fair weights over the unrigged pool only.
+        // Pass 2: compute fair weights over the remaining pool only.
         var fairCount = fairIndexes.Count;
         var fairLabels = BuildLabelAxes(eligibleCandidates, fairIndexes);
         double[] fairProbabilities;
@@ -102,9 +96,10 @@ public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options
             for (var f = 0; f < fairCount; f++)
             {
                 var index = fairIndexes[f];
-                // share = Cap / ΣCap; students without the plugin's attached Cap stay at the
-                // default equal share (Cap = 1).
-                pool[f] = new StudentMetaData(f, caps[index], [fairLabels.Group[f], fairLabels.Gender[f]]);
+                // Cap is caller-side filter metadata for the engine; the debt engine only reads
+                // Multiplier (share = Multiplier / ΣMultiplier). Unrigged students stay at 1.0.
+                pool[f] = new StudentMetaData(f, 1, levers[index]!.Multiplier,
+                    [fairLabels.Group[f], fairLabels.Gender[f]]);
                 histories[f] = new DrawHistory(f, cycleCounts[index]);
             }
 
@@ -115,38 +110,35 @@ public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options
             }
             catch (ArgumentException)
             {
-                // The constructed inputs cannot trip Compute's guards (Cap > 0, counts >= 0,
+                // The constructed inputs cannot trip Compute's guards (multiplier > 0, counts >= 0,
                 // labels >= 0). Degrade to uniform rather than crashing the draw pipeline
                 // (a dispatcher fault would auto-disable the plugin).
                 fairProbabilities = Enumerable.Repeat(1.0 / fairCount, fairCount).ToArray();
             }
         }
 
-        // Pass 3: assemble weights in original candidate order. Rigged weights are measured
-        // against the fair-pool average, so p reads as "p × the average student's pull";
-        // cap-saturated students keep weight 0.
-        var averageFairWeight = fairCount > 0 ? fairProbabilities.Sum() / fairCount : 1.0 / poolSize;
+        // Pass 3: assemble weights in original candidate order.
         var candidates = new WeightedCandidate<Student>[poolSize];
+        var averageFairWeight = fairCount > 0 ? fairProbabilities.Sum() / fairCount : 1.0 / poolSize;
         for (var i = 0; i < poolSize; i++)
         {
-            var scene = rig[i];
-            if (scene is not null)
+            var lever = levers[i]!;
+            if (lever.Excluded)
             {
-                candidates[i] = new WeightedCandidate<Student>
-                {
-                    Candidate = eligibleCandidates[i],
-                    Weight = scene.Probability <= 0
-                        ? 0.0
-                        : scene.Probability >= 100
-                            ? GuaranteedWeight
-                            : scene.Probability * averageFairWeight
-                };
+                candidates[i] = new WeightedCandidate<Student> { Candidate = eligibleCandidates[i], Weight = 0.0 };
+                continue;
+            }
+
+            if (lever.Guaranteed)
+            {
+                candidates[i] = new WeightedCandidate<Student> { Candidate = eligibleCandidates[i], Weight = GuaranteedWeight };
                 continue;
             }
 
             var f = fairOrdinalByIndex[i];
             if (f < 0)
             {
+                // 个人半重复：抽满生效上限，移出候选池
                 candidates[i] = new WeightedCandidate<Student> { Candidate = eligibleCandidates[i], Weight = 0.0 };
                 continue;
             }
@@ -164,20 +156,37 @@ public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options
     }
 
     /// <summary>
-    ///     The configured per-student cap （欠账份额上限 / 个人抽取次数上限）, or null when the
-    ///     attached setting is disabled. Corrupted values fall back to the equal-share default.
+    ///     Reads the host 内幕设置 (0 = exclude, 100 = 必中, otherwise the value is the long-term
+    ///     share multiplier) and the plugin's base cap attachment （未启用 = 无个人上限）.
     /// </summary>
-    private static int? GetConfiguredCap(Student student)
+    private static StudentLever ResolveLever(Student student)
     {
-        var settings = student.GetAttachedObject<NewAlgorithmStudentAttachedSettings>(s_capId);
-        if (settings is not { IsAttachSettingsEnabled: true })
-            return null;
+        var scene = student.GetAttachedObject<BehindSceneAttachedSettings>(s_behindSceneId);
+        var multiplier = 1.0;
+        var excluded = false;
+        var guaranteed = false;
+        if (scene is { IsAttachSettingsEnabled: true })
+        {
+            var probability = Math.Clamp(scene.Probability, 0, 100);
+            if (probability <= 0)
+                excluded = true;
+            else if (probability >= 100)
+                guaranteed = true;
+            else
+                multiplier = probability;
+        }
 
-        var cap = settings.ShareCap;
-        if (double.IsNaN(cap) || double.IsInfinity(cap))
-            return 1;
+        var capSettings = student.GetAttachedObject<NewAlgorithmStudentAttachedSettings>(s_capId);
+        int? baseCap = null;
+        if (capSettings is { IsAttachSettingsEnabled: true })
+        {
+            var cap = capSettings.BaseCap;
+            baseCap = double.IsNaN(cap) || double.IsInfinity(cap)
+                ? 1
+                : Math.Clamp((int)Math.Round(cap), 1, 1000);
+        }
 
-        return Math.Clamp((int)Math.Round(cap), 1, 1000);
+        return new StudentLever(multiplier, baseCap, excluded, guaranteed);
     }
 
     private static BalanceDimension[] BuildDimensions(FairDrawPolicySnapshot fairSettings, double horizonPerPick)

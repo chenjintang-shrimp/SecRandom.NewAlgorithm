@@ -41,8 +41,8 @@
                 </fa:FASettingsExpander.Footer>
             </fa:FASettingsExpander>
 
-            <fa:FASettingsExpander Header="逐人调整（内幕设置 / 欠账份额上限）"
-                                   Description="名单管理中每个学生的附加设置提供两处杠杆：「内幕设置」按权重强制调整（0 为不参与，100 为必中）；「欠账份额上限」同时是份额倍数与个人抽取次数上限（抽满即移出候选池），未启用为 1 且无个人上限"
+            <fa:FASettingsExpander Header="逐人调整（内幕倍率 / 个人上限）"
+                                   Description="名单管理中每个学生的附加设置提供两处正交杠杆：「内幕设置」是长期频率倍率（0 为不参与，100 为必中，中间值为倍率）；「个人抽取次数上限」是防失控阀门，达到 ⌈值×倍率⌉ 次后移出候选池，未启用为无上限"
                                    IconSource="{sr:FluentIconSource {sr:Fi BookNumberFilled}}">
             </fa:FASettingsExpander>
 

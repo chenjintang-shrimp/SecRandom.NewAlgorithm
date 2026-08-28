@@ -8,14 +8,15 @@ public sealed record SimulationResult(
     IReadOnlyList<DrawLogEntry>  Entries,
     TimeSpan                     Elapsed)
 {
-    public int DrawsPerCycle => Config.StudentCount * Config.Cap;
-    public int TotalDraws    => Entries.Count;
+    /// <summary>每周期应抽总数 = Σ⌈Cap × 倍率ᵢ⌉。</summary>
+    public long DrawsPerCycle => Config.DrawsPerCycle();
+    public int  TotalDraws    => Entries.Count;
 }
 
 /// <summary>
 /// 周期制仿真驱动器: 模拟宿主的调用方式 ——
 /// 每个周期重置计数与满池; 每次抽取调用一次 <see cref="FairDrawWeights.Compute"/>;
-/// 命中上限的学生立即离池; 池抽空即周期结束。
+/// 命中生效上限 (⌈Cap × 倍率⌉) 的学生立即离池; 池抽空即周期结束。
 /// </summary>
 public static class SimDriver
 {
@@ -27,15 +28,17 @@ public static class SimDriver
         var settings = config.BuildWeightSettings();
         var students = config.BuildStudents();
         int n        = students.Length;
+        var caps     = students.Select(s => s.Cap).ToArray();
+        long dpc     = caps.Select(c => (long)c).Sum();
         var rng      = new Random(config.Seed);
-        int capacity = config.Cycles * n * config.Cap;
-        var entries  = new List<DrawLogEntry>(capacity);
+        long capacity = config.Cycles * dpc;
+        var entries  = new List<DrawLogEntry>((int)Math.Min(capacity, int.MaxValue));
         var counts   = new int[n];   // 本周期内每人已抽次数, 周期开始清零
         var started  = System.Diagnostics.Stopwatch.StartNew();
 
         // 活性保护: 权重全零 + RandomFloor=0 时算法可能抽不干池子,
         // 超过宽松上限直接抛异常, 把算法缺陷变成可见错误而不是挂死仿真器。
-        int livelockBudget = Math.Max(capacity * 64, 1_000_000);
+        long livelockBudget = Math.Max(capacity * 64, 1_000_000);
 
         int globalIndex = 0;
         for (int cycle = 0; cycle < config.Cycles; cycle++)
@@ -50,7 +53,7 @@ public static class SimDriver
             {
                 if (cycleDraws > livelockBudget)
                     throw new InvalidOperationException(
-                        $"周期 {cycle} 已抽 {cycleDraws} 次仍未抽空 (预期 {n * config.Cap}); " +
+                        $"周期 {cycle} 已抽 {cycleDraws} 次仍未抽空 (预期 {dpc}); " +
                         "疑似权重恒零导致的活性死锁, 检查 PersonalHorizonRounds / RandomFloor 组合");
                 int batch = Math.Min(config.BatchSize, pool.Count);
                 // 同批次内不放回: 抽中即移出批次池, 未达 Cap 者下一批才能再次出现
@@ -86,7 +89,7 @@ public static class SimDriver
                     cycleDraws++;
 
                     counts[picked.Id]++;
-                    if (counts[picked.Id] >= config.Cap)
+                    if (counts[picked.Id] >= caps[picked.Id])
                         pool.RemoveAt(pool.FindIndex(s => s.Id == picked.Id));
                     batchPool.RemoveAt(pick);
                 }

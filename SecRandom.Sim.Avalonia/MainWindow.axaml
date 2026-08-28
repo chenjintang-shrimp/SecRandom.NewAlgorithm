@@ -52,6 +52,10 @@
 
                         <TextBlock Text="标签构成 (各组人数, 逗号分隔; 总和须 = 学生数)" FontSize="12" TextWrapping="Wrap"/>
                         <TextBox x:Name="GenderGroupsBox" Text="20,20" PlaceholderText="例: 20,20 或 10,15,15"/>
+                        <TextBlock Text="逐人倍率覆盖 (Id, -1 = 不覆盖)" FontSize="12"/>
+                        <NumericUpDown x:Name="NuMultId" Minimum="-1" Maximum="10000" Increment="1" Value="-1" FormatString="0"/>
+                        <TextBlock Text="倍率 k (1.0 = 基准, 2.0 = 频率翻倍)" FontSize="12"/>
+                        <NumericUpDown x:Name="NuMultK" Minimum="0.01" Maximum="1000" Increment="0.5" Value="1" FormatString="0.00"/>
                     </StackPanel>
                 </ScrollViewer>
             </DockPanel>
@@ -113,7 +117,7 @@
                         </Grid>
                     </DockPanel>
                     <DockPanel Grid.Column="2" Margin="4">
-                        <TextBlock DockPanel.Dock="Top" Text="批次内不同人数直方图 (应恒等于 BatchSize)"
+                        <TextBlock DockPanel.Dock="Top" x:Name="RoundHeader" Text="批次内不同人数直方图 (应恒等于 BatchSize)"
                                    FontSize="12" TextWrapping="Wrap" Margin="0,0,0,4"/>
                         <sp:AvaPlot x:Name="RoundPlot"/>
                     </DockPanel>
@@ -123,8 +127,12 @@
             <!-- Timeline 页签 -->
             <TabItem Header="Timeline">
                 <DockPanel Margin="8">
-                    <TextBlock x:Name="TimelineNote" DockPanel.Dock="Top" FontSize="12"
-                               Foreground="#B36A00" Margin="0,0,0,4"/>
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="12" Margin="0,0,0,4">
+                        <TextBlock x:Name="TimelineNote" FontSize="12"
+                                   Foreground="#B36A00" VerticalAlignment="Center"/>
+                        <CheckBox x:Name="TimelineTwoCycles" Content="只显示前 2 周期"
+                                  VerticalAlignment="Center" Click="OnTimelineTwoCyclesClicked"/>
+                    </StackPanel>
                     <sp:AvaPlot x:Name="TimelinePlot"/>
                 </DockPanel>
             </TabItem>

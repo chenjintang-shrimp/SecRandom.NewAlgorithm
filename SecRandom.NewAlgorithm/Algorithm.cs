@@ -1,4 +1,4 @@
-﻿namespace SecRandom.NewAlgorithm;
+namespace SecRandom.NewAlgorithm;
 
 public static class FairDrawWeights
 {
@@ -19,28 +19,28 @@ public static class FairDrawWeights
             throw new ArgumentOutOfRangeException(nameof(batchSize),
                 $"批量 {batchSize} 超过池内人数 {pool.Count}; 上限可能已把池子抽小");
 
-        int    poolSize      = pool.Count;
-        var    drawCountById = histories.ToDictionary(record => record.Id, record => (double)record.DrawCount);
-        var    drawCount     = new double[poolSize];
-        double capSum        = 0.0;
-        var    share         = new double[poolSize];
+        int    poolSize        = pool.Count;
+        var    drawCountById   = histories.ToDictionary(record => record.Id, record => (double)record.DrawCount);
+        var    drawCount       = new double[poolSize];
+        double multiplierSum   = 0.0;
+        var    share           = new double[poolSize];
 
         for (int index = 0; index < poolSize; index++)
         {
             var student = pool[index];
-            if (student.Cap <= 0)
-                throw new ArgumentException($"学生 {student.Id} 的上限 {student.Cap} 必须为正", nameof(pool));
+            if (student.Multiplier <= 0.0 || double.IsNaN(student.Multiplier) || double.IsInfinity(student.Multiplier))
+                throw new ArgumentException($"学生 {student.Id} 的倍率 {student.Multiplier} 必须为正的有限值", nameof(pool));
             double count = drawCountById.GetValueOrDefault(student.Id, 0.0);
             if (count < 0.0)
                 throw new ArgumentException($"学生 {student.Id} 的次数为负", nameof(histories));
             drawCount[index] =  count;
-            capSum           += student.Cap;
+            multiplierSum    += student.Multiplier;
         }
 
         double totalDraws = 0.0;
         for (int index = 0; index < poolSize; index++)
         {
-            share[index] =  pool[index].Cap / capSum;
+            share[index] =  pool[index].Multiplier / multiplierSum;
             totalDraws   += drawCount[index];
         }
 

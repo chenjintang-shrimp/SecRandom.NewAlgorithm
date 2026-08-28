@@ -10,6 +10,7 @@ namespace SecRandom.Sim.Avalonia;
 public partial class MainWindow : Window
 {
     private SimulationResult? _result;
+    private int[]?            _lastGroupOf;
 
     private static readonly ScottPlot.Color[] Palette =
     [
@@ -88,17 +89,32 @@ public partial class MainWindow : Window
         NuTotalDraws.ValueChanged += (_, _) => UpdateCycleInfo();
         NuStudents.ValueChanged   += (_, _) => UpdateCycleInfo();
         NuCap.ValueChanged        += (_, _) => UpdateCycleInfo();
+        NuMultId.ValueChanged     += (_, _) => UpdateCycleInfo();
+        NuMultK.ValueChanged      += (_, _) => UpdateCycleInfo();
         UpdateCycleInfo();
     }
     /// <summary>实时显示 总抽取数 → 周期数 的折算结果。</summary>
     private void UpdateCycleInfo()
     {
-        int  students  = IntOf(NuStudents, 40);
-        int  cap       = IntOf(NuCap, 1);
-        long dpc       = (long)students * cap;
-        long target    = LongOf(NuTotalDraws, 400);
-        long cycles    = Math.Max(1, (target + dpc - 1) / dpc);
+        long dpc    = ProbeConfig().DrawsPerCycle();
+        long target = LongOf(NuTotalDraws, 400);
+        long cycles = Math.Max(1, (target + dpc - 1) / dpc);
         CycleInfoText.Text = $"≈ {cycles:N0} 周期 × {dpc:N0} 抽 = 实际 {cycles * dpc:N0} 抽";
+    }
+
+    /// <summary>按当前面板值拼一个最小配置, 仅为拿到生效 ΣCap (倍率覆盖会改变它)。</summary>
+    private SimulationConfig ProbeConfig()
+    {
+        var overrides = new Dictionary<int, double>();
+        int multId = IntOf(NuMultId, -1);
+        if (multId >= 0)
+            overrides[multId] = DoubleOf(NuMultK, 1.0);
+        return new SimulationConfig
+        {
+            StudentCount = IntOf(NuStudents, 40),
+            Cap = IntOf(NuCap, 1),
+            MultiplierOverrides = overrides,
+        };
     }
 
     // ---------------------------------------------------------------- 运行
@@ -149,15 +165,22 @@ public partial class MainWindow : Window
                    StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(s => int.Parse(s, CultureInfo.InvariantCulture))
             .ToArray();
-        int  students     = IntOf(NuStudents, 40);
-        int  cap          = IntOf(NuCap, 1);
-        long drawsPerCycle = (long)students * cap;
+        var overrides = new Dictionary<int, double>();
+        int multId = IntOf(NuMultId, -1);
+        if (multId >= 0)
+            overrides[multId] = DoubleOf(NuMultK, 1.0);
+        int drawsPerCycle = (int)new SimulationConfig
+        {
+            StudentCount = IntOf(NuStudents, 40),
+            Cap = IntOf(NuCap, 1),
+            MultiplierOverrides = overrides,
+        }.DrawsPerCycle();
         // 周期制不可拆分, 向上取整保证至少抽够目标数
         int  cycles       = (int)Math.Max(1, (LongOf(NuTotalDraws, 400) + drawsPerCycle - 1) / drawsPerCycle);
         var config = new SimulationConfig
         {
-            StudentCount          = students,
-            Cap                   = cap,
+            StudentCount          = IntOf(NuStudents, 40),
+            Cap                   = IntOf(NuCap, 1),
             Cycles                = cycles,
             BatchSize             = IntOf(NuBatch, 1),
             Seed                  = IntOf(NuSeed, 1),
@@ -165,6 +188,7 @@ public partial class MainWindow : Window
             GenderHorizonPerPick  = DoubleOf(NuGenderHorizon, 0.8),
             RandomFloor           = DoubleOf(NuFloor, 0.10),
             GenderGroupSizes      = groups.Length == 0 ? [IntOf(NuStudents, 40)] : groups,
+            MultiplierOverrides   = overrides,
         };
         config.Validate();
         return config;
@@ -180,11 +204,18 @@ public partial class MainWindow : Window
 
     // ---------------------------------------------------------------- 更新
 
+    private void OnTimelineTwoCyclesClicked(object? sender, RoutedEventArgs e)
+    {
+        if (_result is { } result && _lastGroupOf is { } groupOf)
+            UpdateTimeline(result, groupOf);
+    }
+
     private void UpdateAll(SimulationResult result)
     {
         var groupOf = new int[result.Config.StudentCount];
         foreach (var student in result.Students)
             groupOf[student.Id] = student.Labels[0];
+        _lastGroupOf = groupOf;
 
         UpdateMetrics(result);
         UpdateDistributions(result, groupOf);
@@ -227,43 +258,74 @@ public partial class MainWindow : Window
         countsPlot.Add.Bars(bars);
         countsPlot.Axes.Bottom.Label.Text = "学生 Id";
         countsPlot.Axes.Left.Label.Text   = "总被抽次数";
+        // 柱宽会把 AutoScale 的 X 范围算歪, 显式锁在 [-0.5, N-0.5]; 柱图下界恒为 0
+        countsPlot.Axes.SetLimitsX(-0.5, n - 0.5);
+        countsPlot.Axes.SetLimitsY(0, Math.Max(1, counts.Max() * 1.1));
         CountsPlot.Refresh();
 
-        // 2) 同一人两次被抽间隔 (仅 Cap ≥ 2)
-        bool hasGaps = result.Config.Cap >= 2;
-        GapOverlay.IsVisible = !hasGaps;
+        // 2) 同一人两次被抽间隔 (跨周期, 与指标表同口径)
         var gapPlot = GapPlot.Plot;
         gapPlot.Clear();
-        if (hasGaps)
+        var gapsData = ComputeGaps(result);
+        GapOverlay.IsVisible = gapsData.Count == 0;
+        if (gapsData.Count > 0)
         {
-            var gaps = ComputeGaps(result);
-            if (gaps.Count > 0)
-            {
-                int  binCount = Math.Clamp((int)Math.Sqrt(gaps.Count), 5, 40);
-                var  hist     = ScottPlot.Statistics.Histogram.WithBinCount(binCount, gaps);
-                var  barPlot  = gapPlot.Add.Bars(hist.Bins, hist.Counts);
-                barPlot.Color = Palette[0];
-            }
+            int  binCount = Math.Clamp((int)Math.Sqrt(gapsData.Count), 5, 40);
+            var  hist     = ScottPlot.Statistics.Histogram.WithBinCount(binCount, gapsData);
+            var  barPlot  = gapPlot.Add.Bars(hist.Bins, hist.Counts);
+            barPlot.Color = Palette[0];
+            gapPlot.Axes.SetLimitsY(0, Math.Max(1, hist.Counts.Max() * 1.1));
         }
-        gapPlot.Axes.Bottom.Label.Text = "间隔 (抽)";
+        gapPlot.Axes.Bottom.Label.Text = "间隔 (跨周期, 抽)";
         gapPlot.Axes.Left.Label.Text   = "频次";
         GapPlot.Refresh();
 
-        // 3) 批次内不同人数
+        // 3) BatchSize=1 时批次内不同人数恒为 1, 换「每轮见到人数」覆盖率分布:
+        //    连续 N 抽为一个窗口, 统计窗口内不同学生数的直方图 (反映刺激度波动)
         var roundPlot = RoundPlot.Plot;
         roundPlot.Clear();
-        var frequency = new SortedDictionary<int, int>();
-        foreach (int distinct in BatchDistinctCounts(result.Entries))
-            frequency[distinct] = frequency.GetValueOrDefault(distinct) + 1;
-        var positions = frequency.Keys.Select(k => (double)k).ToArray();
-        var values    = frequency.Values.Select(v => (double)v).ToArray();
-        if (positions.Length > 0)
+        if (result.Config.BatchSize <= 1)
         {
-            var barPlot  = roundPlot.Add.Bars(positions, values);
-            barPlot.Color = Palette[2];
+            RoundHeader.Text = $"每轮见到人数直方图 (连续 {n} 抽为一窗口, 覆盖率分布)";
+            var coverage = new SortedDictionary<int, int>();
+            var seen = new HashSet<int>();
+            for (int i = 0; i < result.Entries.Count; i++)
+            {
+                seen.Add(result.Entries[i].PickedId);
+                if ((i + 1) % n == 0)
+                {
+                    coverage[seen.Count] = coverage.GetValueOrDefault(seen.Count) + 1;
+                    seen.Clear();
+                }
+            }
+            if (coverage.Count > 0)
+            {
+                var positions = coverage.Keys.Select(k => (double)k).ToArray();
+                var values    = coverage.Values.Select(v => (double)v).ToArray();
+                var barPlot   = roundPlot.Add.Bars(positions, values);
+                barPlot.Color = Palette[2];
+                roundPlot.Axes.SetLimitsY(0, Math.Max(1, values.Max() * 1.1));
+            }
+            roundPlot.Axes.Bottom.Label.Text = "窗口内见到不同人数";
+            roundPlot.Axes.Left.Label.Text   = "窗口数";
         }
-        roundPlot.Axes.Bottom.Label.Text = "批次内不同人数";
-        roundPlot.Axes.Left.Label.Text   = "批次数";
+        else
+        {
+            RoundHeader.Text = "批次内不同人数直方图 (应恒等于 BatchSize)";
+            var frequency = new SortedDictionary<int, int>();
+            foreach (int distinct in BatchDistinctCounts(result.Entries))
+                frequency[distinct] = frequency.GetValueOrDefault(distinct) + 1;
+            var positions = frequency.Keys.Select(k => (double)k).ToArray();
+            var values    = frequency.Values.Select(v => (double)v).ToArray();
+            if (positions.Length > 0)
+            {
+                var barPlot  = roundPlot.Add.Bars(positions, values);
+                barPlot.Color = Palette[2];
+                roundPlot.Axes.SetLimitsY(0, Math.Max(1, values.Max() * 1.1));
+            }
+            roundPlot.Axes.Bottom.Label.Text = "批次内不同人数";
+            roundPlot.Axes.Left.Label.Text   = "批次数";
+        }
         RoundPlot.Refresh();
     }
 
@@ -272,13 +334,15 @@ public partial class MainWindow : Window
         var plot    = TimelinePlot.Plot;
         plot.Clear();
         var config  = result.Config;
-        int perCycle    = Math.Max(1, config.StudentCount * config.Cap);
-        int shownCycles = Math.Min(config.Cycles, Math.Max(1, TimelinePointBudget / perCycle));
+        long perCycle   = config.DrawsPerCycle();
+        int shownCycles = TimelineTwoCycles.IsChecked == true
+            ? Math.Min(2, config.Cycles)
+            : Math.Min(config.Cycles, (int)Math.Max(1, TimelinePointBudget / perCycle));
         bool truncated  = shownCycles < config.Cycles;
         TimelineNote.Text = truncated
-            ? $"数据量过大: 仅显示前 {shownCycles}/{config.Cycles} 周期 (共 {perCycle * config.Cycles:N0} 点)"
+            ? $"仅显示前 {shownCycles}/{config.Cycles} 周期 (共 {perCycle * config.Cycles:N0} 点)"
             : "";
-        int shown = shownCycles * perCycle;
+        long shown = (long)shownCycles * perCycle;
 
         int groups = config.GenderGroupSizes.Length;
         var xs = Enumerable.Range(0, groups).Select(_ => new List<double>()).ToArray();
@@ -321,8 +385,8 @@ public partial class MainWindow : Window
             var signal = plot.Add.Signal(poolSizes);
             signal.Color = Palette[0];
         }
-        int perCycle = result.DrawsPerCycle;
-        int cycles   = result.Config.Cycles;
+        long perCycle = result.DrawsPerCycle;
+        int cycles    = result.Config.Cycles;
         if (cycles <= 400)
             for (int cycle = 1; cycle < cycles; cycle++)
                 plot.Add.VerticalLine(cycle * perCycle).Color = BoundaryColor;
@@ -339,23 +403,18 @@ public partial class MainWindow : Window
 
     // ---------------------------------------------------------------- 数据加工
 
-    /// <summary>同一人两次相邻被抽的间隔 (同周期内), 汇总所有学生和周期。</summary>
+    /// <summary>同一人两次相邻被抽的间隔 (跨周期, 按全局序号), 与指标表口径一致。</summary>
     private static List<double> ComputeGaps(SimulationResult result)
     {
         int n = result.Config.StudentCount;
         var gaps     = new List<double>();
         var lastSeen = new int[n];
-        int prevCycle = -1;
+        Array.Fill(lastSeen, -1);
         foreach (var entry in result.Entries)
         {
-            if (entry.CycleIndex != prevCycle)
-            {
-                Array.Fill(lastSeen, -1);
-                prevCycle = entry.CycleIndex;
-            }
             if (lastSeen[entry.PickedId] >= 0)
-                gaps.Add(entry.DrawIndexInCycle - lastSeen[entry.PickedId]);
-            lastSeen[entry.PickedId] = entry.DrawIndexInCycle;
+                gaps.Add(entry.GlobalIndex - lastSeen[entry.PickedId]);
+            lastSeen[entry.PickedId] = entry.GlobalIndex;
         }
         return gaps;
     }
