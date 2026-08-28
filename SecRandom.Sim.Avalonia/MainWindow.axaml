@@ -25,6 +25,12 @@
                     <StackPanel Spacing="6">
                         <TextBlock Text="参数" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,4" />
 
+                        <Button x:Name="ImportButton" Content="导入名单 (SecRandom JSON)…"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                Click="OnImportClicked" />
+                        <TextBlock x:Name="ImportInfoText" FontSize="11" Foreground="#888888"
+                                   TextWrapping="Wrap" />
+
                         <TextBlock Text="学生数" FontSize="12" />
                         <NumericUpDown x:Name="NuStudents" Minimum="1" Maximum="10000" Increment="1" Value="40"
                                        FormatString="0" />

@@ -28,11 +28,16 @@ public static class DrawLog
     public const string CsvHeader =
         "CycleIndex,DrawIndexInCycle,GlobalIndex,PickedId,PoolSize,WasArgmax,Degraded,BatchSlot";
 
-    public static void WriteCsv(TextWriter writer, IReadOnlyList<DrawLogEntry> entries)
+    /// <summary>导入名单时的表头, 在 PickedId 后追加 PickedName 列。</summary>
+    public const string CsvHeaderWithName =
+        "CycleIndex,DrawIndexInCycle,GlobalIndex,PickedId,PickedName,PoolSize,WasArgmax,Degraded,BatchSlot";
+
+    public static void WriteCsv(TextWriter writer, IReadOnlyList<DrawLogEntry> entries,
+        IReadOnlyList<string>? names = null)
     {
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(entries);
-        writer.WriteLine(CsvHeader);
+        writer.WriteLine(names is null ? CsvHeader : CsvHeaderWithName);
         foreach (var e in entries)
         {
             writer.Write(e.CycleIndex);
@@ -43,6 +48,8 @@ public static class DrawLog
             writer.Write(',');
             writer.Write(e.PickedId);
             writer.Write(',');
+            if (names is not null)
+                WriteCsvField(writer, names[e.PickedId]);
             writer.Write(e.PoolSize);
             writer.Write(',');
             writer.Write(e.WasArgmax ? "True" : "False");
@@ -54,9 +61,30 @@ public static class DrawLog
         }
     }
 
-    public static void WriteCsvFile(string path, IReadOnlyList<DrawLogEntry> entries)
+    public static void WriteCsvFile(string path, IReadOnlyList<DrawLogEntry> entries,
+        IReadOnlyList<string>? names = null)
     {
         using var writer = new StreamWriter(path, false);
-        WriteCsv(writer, entries);
+        WriteCsv(writer, entries, names);
+    }
+
+    /// <summary>极简 CSV 转义: 含 , " 或换行才加引号, 引号双写; 否则原样写出。字段后恒补逗号。</summary>
+    private static void WriteCsvField(TextWriter writer, string value)
+    {
+        if (value.IndexOfAny([',', '"', '\n', '\r']) < 0)
+        {
+            writer.Write(value);
+            writer.Write(',');
+            return;
+        }
+
+        writer.Write('"');
+        foreach (var c in value)
+        {
+            if (c == '"') writer.Write('"');
+            writer.Write(c);
+        }
+
+        writer.Write("\",");
     }
 }

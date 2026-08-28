@@ -41,6 +41,11 @@ public sealed record SimulationConfig
     /// </summary>
     public IReadOnlyDictionary<int, double> MultiplierOverrides { get; init; } = new Dictionary<int, double>();
 
+    /// <summary>
+    /// 导入名单时 Id → 显示名 (来自 ImportedRoster.Names)。纯展示/导出用, 不参与任何计算; null = 未导入。
+    /// </summary>
+    public IReadOnlyList<string>? StudentNames { get; init; }
+
     public void Validate()
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(StudentCount, 1);
@@ -66,6 +71,10 @@ public sealed record SimulationConfig
         if (sum != StudentCount)
             throw new ArgumentException(
                 $"分组人数之和 {sum} 必须等于学生总数 {StudentCount}", nameof(GenderGroupSizes));
+
+        if (StudentNames is not null && StudentNames.Count != StudentCount)
+            throw new ArgumentException(
+                $"名单名字数 {StudentNames.Count} 与学生总数 {StudentCount} 不一致", nameof(StudentNames));
 
         foreach (var (id, multiplier) in MultiplierOverrides)
         {

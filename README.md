@@ -9,6 +9,9 @@
 
 </div>
 
+> [!WARNING]
+> 该算法与“平均值差值保护”之间冲突。如果需要体验完整算法请将其关闭：我们的流程中已经包含了这一点。
+
 ## 许可证问题
 
 > [!NOTE]
@@ -32,4 +35,4 @@
 
 本项目引用了[SecRandom.PluginSDK]("https://github.com/SECTL/SecRandom")，使用 Avalonia 作为图形化测试工具所使用的图形库。
 
-Copyright (C) 2026 chenjintang-shrimp & SECTL
+Copyright (C) 2026 chenjintang-shrimp

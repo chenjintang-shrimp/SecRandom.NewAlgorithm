@@ -11,6 +11,8 @@ public partial class MainWindow : Window
 {
     private SimulationResult? _result;
     private int[]?            _lastGroupOf;
+    private ImportedRoster?   _roster;
+    private string[]?         _lastGenderLabels;
 
     private static readonly Color[] Palette =
     [
@@ -93,6 +95,67 @@ public partial class MainWindow : Window
         NuCap.ValueChanged        += (_, _) => UpdateCycleInfo();
         NuMultId.ValueChanged     += (_, _) => UpdateCycleInfo();
         NuMultK.ValueChanged      += (_, _) => UpdateCycleInfo();
+        // 名单映射只在这两处输入保持导入值时有效; 手动改动即失效 (Id 会对不上)
+        NuStudents.ValueChanged     += (_, _) => ClearRoster();
+        GenderGroupsBox.TextChanged += (_, _) => ClearRoster();
+        UpdateCycleInfo();
+        // 诊断钩子: SECRANDOM_SIM_IMPORT=<path> 启动时自动导入名单 (配合 AUTORUN 冒烟)
+        var importPath = Environment.GetEnvironmentVariable("SECRANDOM_SIM_IMPORT");
+        if (!string.IsNullOrEmpty(importPath))
+            LoadRoster(importPath);
+    }
+
+    // ---------------------------------------------------------------- 名单导入
+
+    private void ClearRoster()
+    {
+        _roster             = null;
+        ImportInfoText.Text = "";
+    }
+
+    private async void OnImportClicked(object? sender, RoutedEventArgs e)
+    {
+        var top = GetTopLevel(this);
+        if (top is null) return;
+        var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title          = "导入 SecRandom 学生名单",
+            AllowMultiple  = false,
+            FileTypeFilter = [new FilePickerFileType("SecRandom 名单 (JSON)") { Patterns = ["*.json"] }]
+        });
+        if (files.Count == 0) return;
+        var path = files[0].TryGetLocalPath();
+        if (path is null)
+        {
+            ErrorText.Text = "无法获取所选文件的本地路径";
+            return;
+        }
+
+        LoadRoster(path);
+    }
+
+    /// <summary>加载名单并把参数面板打成名单形态。注意顺序: 先改控件 (触发失效钩子), 最后才赋 _roster。</summary>
+    private void LoadRoster(string path)
+    {
+        ImportedRoster roster;
+        try
+        {
+            roster = StudentListImporter.LoadFile(path);
+        }
+        catch (Exception ex)
+        {
+            ErrorText.Text = $"导入失败: {ex.Message}";
+            return;
+        }
+
+        ClearRoster();
+        NuStudents.Value     = roster.Students.Count;
+        GenderGroupsBox.Text = string.Join(',', roster.GenderGroupSizes);
+        _roster              = roster;
+        var breakdown = string.Join(" / ", roster.GenderLabels.Zip(roster.GenderGroupSizes,
+            (label, count) => $"{label} {count}"));
+        ImportInfoText.Text = $"已导入 {Path.GetFileName(path)}: {roster.Students.Count} 人 ({breakdown}); " +
+                              "改学生数或标签构成会使名单映射失效";
         UpdateCycleInfo();
     }
 
@@ -136,8 +199,9 @@ public partial class MainWindow : Window
             return;
         }
 
-        RunButton.IsEnabled = false;
-        StatusText.Text     = "运行中…";
+        RunButton.IsEnabled    = false;
+        ImportButton.IsEnabled = false;
+        StatusText.Text        = "运行中…";
         RunProgress.Value   = 0;
         RunProgress.Maximum = config.Cycles;
         // Progress<T> 在创建时捕获 UI SynchronizationContext, 回调天然回到 UI 线程
@@ -158,7 +222,8 @@ public partial class MainWindow : Window
         }
         finally
         {
-            RunButton.IsEnabled = true;
+            RunButton.IsEnabled    = true;
+            ImportButton.IsEnabled = true;
         }
     }
 
@@ -192,7 +257,8 @@ public partial class MainWindow : Window
             GenderHorizonPerPick  = DoubleOf(NuGenderHorizon, 0.8),
             RandomFloor           = DoubleOf(NuFloor,         0.10),
             GenderGroupSizes      = groups.Length == 0 ? [IntOf(NuStudents, 40)] : groups,
-            MultiplierOverrides   = overrides
+            MultiplierOverrides   = overrides,
+            StudentNames          = _roster?.Names
         };
         config.Validate();
         return config;
@@ -227,13 +293,19 @@ public partial class MainWindow : Window
         foreach (var student in result.Students)
             groupOf[student.Id] = student.Labels[0];
         _lastGroupOf = groupOf;
+        _lastGenderLabels = _roster?.GenderLabels.ToArray();
 
         UpdateMetrics(result);
         UpdateDistributions(result, groupOf);
         UpdateTimeline(result, groupOf);
         UpdatePool(result);
         UpdateLog(result);
-        LogGrid.ItemsSource = result.Entries;
+        LogGrid.ItemsSource = result.Config.StudentNames is { } names
+            ? result.Entries.Select(entry => new LogRow(entry.CycleIndex, entry.DrawIndexInCycle,
+                    entry.GlobalIndex, entry.PickedId, names[entry.PickedId], entry.PoolSize,
+                    entry.WasArgmax, entry.Degraded, entry.BatchSlot))
+                .ToList()
+            : result.Entries;
     }
 
     private void UpdateMetrics(SimulationResult result)
@@ -378,7 +450,9 @@ public partial class MainWindow : Window
             scatter.LineWidth  = 0; // 只画点不连线 (LinePattern 无 None, 用线宽 0)
             scatter.MarkerSize = 2;
             scatter.Color      = Palette[group % Palette.Length];
-            scatter.LegendText = $"组{group}";
+            scatter.LegendText = _lastGenderLabels is { } labels && group < labels.Length
+                ? labels[group]
+                : $"组{group}";
         }
 
         if (groups > 1)
@@ -487,7 +561,7 @@ public partial class MainWindow : Window
         {
             await using var stream = await file.OpenWriteAsync();
             await using var writer = new StreamWriter(stream);
-            DrawLog.WriteCsv(writer, _result.Entries);
+            DrawLog.WriteCsv(writer, _result.Entries, _result.Config.StudentNames);
             StatusText.Text = $"已导出 {_result.Entries.Count:N0} 行: {file.Path.LocalPath}";
         }
         catch (Exception ex)
@@ -499,4 +573,15 @@ public partial class MainWindow : Window
     private sealed record HardRow(string Name, string Mark, string Expected, string Actual);
 
     private sealed record StatRow(string Name, string Value);
+
+    private sealed record LogRow(
+        int    CycleIndex,
+        int    DrawIndexInCycle,
+        int    GlobalIndex,
+        int    PickedId,
+        string PickedName,
+        int    PoolSize,
+        bool   WasArgmax,
+        bool   Degraded,
+        int    BatchSlot);
 }
