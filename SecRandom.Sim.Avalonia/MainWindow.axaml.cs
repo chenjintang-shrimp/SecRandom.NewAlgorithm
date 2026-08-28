@@ -12,18 +12,19 @@ public partial class MainWindow : Window
     private SimulationResult? _result;
     private int[]?            _lastGroupOf;
 
-    private static readonly ScottPlot.Color[] Palette =
+    private static readonly Color[] Palette =
     [
-        ScottPlot.Color.FromHex("#4C8DDA"),
-        ScottPlot.Color.FromHex("#E45756"),
-        ScottPlot.Color.FromHex("#54A24B"),
-        ScottPlot.Color.FromHex("#F28E2C"),
-        ScottPlot.Color.FromHex("#B279A2"),
-        ScottPlot.Color.FromHex("#76B7B2"),
-        ScottPlot.Color.FromHex("#EDC948"),
-        ScottPlot.Color.FromHex("#9D755D"),
+        Color.FromHex("#4C8DDA"),
+        Color.FromHex("#E45756"),
+        Color.FromHex("#54A24B"),
+        Color.FromHex("#F28E2C"),
+        Color.FromHex("#B279A2"),
+        Color.FromHex("#76B7B2"),
+        Color.FromHex("#EDC948"),
+        Color.FromHex("#9D755D")
     ];
-    private static readonly ScottPlot.Color BoundaryColor = ScottPlot.Color.FromHex("#D98880");
+
+    private static readonly Color BoundaryColor = Color.FromHex("#D98880");
 
     /// <summary>Timeline 点数预算; 超出即只画前若干周期 (见 TimelineNote)。</summary>
     private const int TimelinePointBudget = 150_000;
@@ -41,10 +42,10 @@ public partial class MainWindow : Window
     /// </summary>
     private static void SetupPlotFonts()
     {
-        string userFonts = Path.Combine(
+        var userFonts = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             @"Microsoft\Windows\Fonts");
-        string systemFonts = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
+        var systemFonts = Environment.GetFolderPath(Environment.SpecialFolder.Fonts);
 
         string? Find(string file) =>
             new[] { Path.Combine(userFonts, file), Path.Combine(systemFonts, file) }
@@ -54,29 +55,30 @@ public partial class MainWindow : Window
         (string File, string Family)[] candidates =
         [
             ("HarmonyOS_Sans_SC_Regular.ttf", "HarmonyOS Sans SC"),
-            ("MapleMono-NF-CN-Regular.ttf",   "Maple Mono NF CN"),
+            ("MapleMono-NF-CN-Regular.ttf", "Maple Mono NF CN")
         ];
         (string File, string Family)[] boldCandidates =
         [
             ("HarmonyOS_Sans_SC_Bold.ttf", "HarmonyOS Sans SC"),
-            ("MapleMono-NF-CN-Bold.ttf",   "Maple Mono NF CN"),
+            ("MapleMono-NF-CN-Bold.ttf", "Maple Mono NF CN")
         ];
 
         var regular = candidates
-            .Select(c => (Path: Find(c.File), c.Family))
-            .FirstOrDefault(c => c.Path is not null);
+                      .Select(c => (Path: Find(c.File), c.Family))
+                      .FirstOrDefault(c => c.Path is not null);
         if (regular.Path is null)
         {
-            ScottPlot.Fonts.Default = "Microsoft YaHei";   // 系统枚举兜底
+            Fonts.Default = "Microsoft YaHei"; // 系统枚举兜底
             return;
         }
-        ScottPlot.Fonts.AddFontFile(regular.Family, regular.Path, bold: false, italic: false);
+
+        Fonts.AddFontFile(regular.Family, regular.Path, false, false);
         var bold = boldCandidates
-            .Select(c => (Path: Find(c.File), c.Family))
-            .FirstOrDefault(c => c.Path is not null && c.Family == regular.Family);
+                   .Select(c => (Path: Find(c.File), c.Family))
+                   .FirstOrDefault(c => c.Path is not null && c.Family == regular.Family);
         if (bold.Path is not null)
-            ScottPlot.Fonts.AddFontFile(bold.Family, bold.Path, bold: true, italic: false);
-        ScottPlot.Fonts.Default = regular.Family;
+            Fonts.AddFontFile(bold.Family, bold.Path, true, false);
+        Fonts.Default = regular.Family;
     }
 
     public MainWindow()
@@ -93,12 +95,13 @@ public partial class MainWindow : Window
         NuMultK.ValueChanged      += (_, _) => UpdateCycleInfo();
         UpdateCycleInfo();
     }
+
     /// <summary>实时显示 总抽取数 → 周期数 的折算结果。</summary>
     private void UpdateCycleInfo()
     {
-        long dpc    = ProbeConfig().DrawsPerCycle();
-        long target = LongOf(NuTotalDraws, 400);
-        long cycles = Math.Max(1, (target + dpc - 1) / dpc);
+        var dpc    = ProbeConfig().DrawsPerCycle();
+        var target = LongOf(NuTotalDraws, 400);
+        var cycles = Math.Max(1, (target + dpc - 1) / dpc);
         CycleInfoText.Text = $"≈ {cycles:N0} 周期 × {dpc:N0} 抽 = 实际 {cycles * dpc:N0} 抽";
     }
 
@@ -106,14 +109,14 @@ public partial class MainWindow : Window
     private SimulationConfig ProbeConfig()
     {
         var overrides = new Dictionary<int, double>();
-        int multId = IntOf(NuMultId, -1);
+        var multId    = IntOf(NuMultId, -1);
         if (multId >= 0)
             overrides[multId] = DoubleOf(NuMultK, 1.0);
         return new SimulationConfig
         {
-            StudentCount = IntOf(NuStudents, 40),
-            Cap = IntOf(NuCap, 1),
-            MultiplierOverrides = overrides,
+            StudentCount        = IntOf(NuStudents, 40),
+            Cap                 = IntOf(NuCap,      1),
+            MultiplierOverrides = overrides
         };
     }
 
@@ -134,8 +137,8 @@ public partial class MainWindow : Window
         }
 
         RunButton.IsEnabled = false;
-        StatusText.Text    = "运行中…";
-        RunProgress.Value  = 0;
+        StatusText.Text     = "运行中…";
+        RunProgress.Value   = 0;
         RunProgress.Maximum = config.Cycles;
         // Progress<T> 在创建时捕获 UI SynchronizationContext, 回调天然回到 UI 线程
         var progress = new Progress<int>(done => RunProgress.Value = done);
@@ -144,7 +147,8 @@ public partial class MainWindow : Window
             // 计算在后台线程; await 之后回到 UI 上下文, 可以直接碰图表
             var result = await Task.Run(() => SimDriver.Run(config, progress));
             _result = result;
-            StatusText.Text = $"完成 {result.TotalDraws:N0} 抽 ({config.Cycles:N0} 周期), 用时 {result.Elapsed.TotalMilliseconds:F0} ms";
+            StatusText.Text =
+                $"完成 {result.TotalDraws:N0} 抽 ({config.Cycles:N0} 周期), 用时 {result.Elapsed.TotalMilliseconds:F0} ms";
             UpdateAll(result);
         }
         catch (Exception ex)
@@ -161,46 +165,53 @@ public partial class MainWindow : Window
     private SimulationConfig ReadConfig()
     {
         var groups = (GenderGroupsBox.Text ?? "")
-            .Split([',', '，', ';', '；', ' '],
-                   StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(s => int.Parse(s, CultureInfo.InvariantCulture))
-            .ToArray();
+                     .Split([',', '，', ';', '；', ' '],
+                         StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                     .Select(s => int.Parse(s, CultureInfo.InvariantCulture))
+                     .ToArray();
         var overrides = new Dictionary<int, double>();
-        int multId = IntOf(NuMultId, -1);
+        var multId    = IntOf(NuMultId, -1);
         if (multId >= 0)
             overrides[multId] = DoubleOf(NuMultK, 1.0);
-        int drawsPerCycle = (int)new SimulationConfig
+        var drawsPerCycle = (int)new SimulationConfig
         {
-            StudentCount = IntOf(NuStudents, 40),
-            Cap = IntOf(NuCap, 1),
-            MultiplierOverrides = overrides,
+            StudentCount        = IntOf(NuStudents, 40),
+            Cap                 = IntOf(NuCap,      1),
+            MultiplierOverrides = overrides
         }.DrawsPerCycle();
         // 周期制不可拆分, 向上取整保证至少抽够目标数
-        int  cycles       = (int)Math.Max(1, (LongOf(NuTotalDraws, 400) + drawsPerCycle - 1) / drawsPerCycle);
+        var cycles = (int)Math.Max(1, (LongOf(NuTotalDraws, 400) + drawsPerCycle - 1) / drawsPerCycle);
         var config = new SimulationConfig
         {
             StudentCount          = IntOf(NuStudents, 40),
-            Cap                   = IntOf(NuCap, 1),
+            Cap                   = IntOf(NuCap,      1),
             Cycles                = cycles,
             BatchSize             = IntOf(NuBatch, 1),
-            Seed                  = IntOf(NuSeed, 1),
-            PersonalHorizonRounds = DoubleOf(NuHorizon, 2.0),
+            Seed                  = IntOf(NuSeed,  1),
+            PersonalHorizonRounds = DoubleOf(NuHorizon,       2.0),
             GenderHorizonPerPick  = DoubleOf(NuGenderHorizon, 0.8),
-            RandomFloor           = DoubleOf(NuFloor, 0.10),
+            RandomFloor           = DoubleOf(NuFloor,         0.10),
             GenderGroupSizes      = groups.Length == 0 ? [IntOf(NuStudents, 40)] : groups,
-            MultiplierOverrides   = overrides,
+            MultiplierOverrides   = overrides
         };
         config.Validate();
         return config;
     }
 
     private static int IntOf(NumericUpDown nud, int fallback)
-        => nud.Value.HasValue ? (int)nud.Value.Value : fallback;
+    {
+        return nud.Value.HasValue ? (int)nud.Value.Value : fallback;
+    }
+
     private static long LongOf(NumericUpDown nud, long fallback)
-        => nud.Value.HasValue ? (long)nud.Value.Value : fallback;
+    {
+        return nud.Value.HasValue ? (long)nud.Value.Value : fallback;
+    }
 
     private static double DoubleOf(NumericUpDown nud, double fallback)
-        => nud.Value.HasValue ? (double)nud.Value.Value : fallback;
+    {
+        return nud.Value.HasValue ? (double)nud.Value.Value : fallback;
+    }
 
     // ---------------------------------------------------------------- 更新
 
@@ -229,17 +240,17 @@ public partial class MainWindow : Window
     {
         var metrics = MetricsCalculator.Compute(result);
         HardGrid.ItemsSource = metrics.Hard
-            .Select(c => new HardRow(c.Name, c.Passed ? "✓" : "✗", c.Expected, c.Actual))
-            .ToList();
+                                      .Select(c => new HardRow(c.Name, c.Passed ? "✓" : "✗", c.Expected, c.Actual))
+                                      .ToList();
         StatGrid.ItemsSource = metrics.Stats
-            .Select(s => new StatRow(s.Name, s.Value))
-            .ToList();
+                                      .Select(s => new StatRow(s.Name, s.Value))
+                                      .ToList();
         MetricsFailNote.IsVisible = !metrics.AllHardPassed;
     }
 
     private void UpdateDistributions(SimulationResult result, int[] groupOf)
     {
-        int n = result.Config.StudentCount;
+        var n = result.Config.StudentCount;
 
         // 1) 每人总被抽次数, 条按性别组着色
         var countsPlot = CountsPlot.Plot;
@@ -248,13 +259,13 @@ public partial class MainWindow : Window
         foreach (var entry in result.Entries)
             counts[entry.PickedId]++;
         var bars = counts
-            .Select((value, id) => new Bar
-            {
-                Position  = id,
-                Value     = value,
-                FillColor = Palette[groupOf[id] % Palette.Length],
-            })
-            .ToList();
+                   .Select((value, id) => new Bar
+                   {
+                       Position  = id,
+                       Value     = value,
+                       FillColor = Palette[groupOf[id] % Palette.Length]
+                   })
+                   .ToList();
         countsPlot.Add.Bars(bars);
         countsPlot.Axes.Bottom.Label.Text = "学生 Id";
         countsPlot.Axes.Left.Label.Text   = "总被抽次数";
@@ -270,12 +281,13 @@ public partial class MainWindow : Window
         GapOverlay.IsVisible = gapsData.Count == 0;
         if (gapsData.Count > 0)
         {
-            int  binCount = Math.Clamp((int)Math.Sqrt(gapsData.Count), 5, 40);
-            var  hist     = ScottPlot.Statistics.Histogram.WithBinCount(binCount, gapsData);
-            var  barPlot  = gapPlot.Add.Bars(hist.Bins, hist.Counts);
+            var binCount = Math.Clamp((int)Math.Sqrt(gapsData.Count), 5, 40);
+            var hist     = ScottPlot.Statistics.Histogram.WithBinCount(binCount, gapsData);
+            var barPlot  = gapPlot.Add.Bars(hist.Bins, hist.Counts);
             barPlot.Color = Palette[0];
             gapPlot.Axes.SetLimitsY(0, Math.Max(1, hist.Counts.Max() * 1.1));
         }
+
         gapPlot.Axes.Bottom.Label.Text = "间隔 (跨周期, 抽)";
         gapPlot.Axes.Left.Label.Text   = "频次";
         GapPlot.Refresh();
@@ -288,8 +300,8 @@ public partial class MainWindow : Window
         {
             RoundHeader.Text = $"每轮见到人数直方图 (连续 {n} 抽为一窗口, 覆盖率分布)";
             var coverage = new SortedDictionary<int, int>();
-            var seen = new HashSet<int>();
-            for (int i = 0; i < result.Entries.Count; i++)
+            var seen     = new HashSet<int>();
+            for (var i = 0; i < result.Entries.Count; i++)
             {
                 seen.Add(result.Entries[i].PickedId);
                 if ((i + 1) % n == 0)
@@ -298,6 +310,7 @@ public partial class MainWindow : Window
                     seen.Clear();
                 }
             }
+
             if (coverage.Count > 0)
             {
                 var positions = coverage.Keys.Select(k => (double)k).ToArray();
@@ -306,6 +319,7 @@ public partial class MainWindow : Window
                 barPlot.Color = Palette[2];
                 roundPlot.Axes.SetLimitsY(0, Math.Max(1, values.Max() * 1.1));
             }
+
             roundPlot.Axes.Bottom.Label.Text = "窗口内见到不同人数";
             roundPlot.Axes.Left.Label.Text   = "窗口数";
         }
@@ -313,61 +327,65 @@ public partial class MainWindow : Window
         {
             RoundHeader.Text = "批次内不同人数直方图 (应恒等于 BatchSize)";
             var frequency = new SortedDictionary<int, int>();
-            foreach (int distinct in BatchDistinctCounts(result.Entries))
+            foreach (var distinct in BatchDistinctCounts(result.Entries))
                 frequency[distinct] = frequency.GetValueOrDefault(distinct) + 1;
             var positions = frequency.Keys.Select(k => (double)k).ToArray();
             var values    = frequency.Values.Select(v => (double)v).ToArray();
             if (positions.Length > 0)
             {
-                var barPlot  = roundPlot.Add.Bars(positions, values);
+                var barPlot = roundPlot.Add.Bars(positions, values);
                 barPlot.Color = Palette[2];
                 roundPlot.Axes.SetLimitsY(0, Math.Max(1, values.Max() * 1.1));
             }
+
             roundPlot.Axes.Bottom.Label.Text = "批次内不同人数";
             roundPlot.Axes.Left.Label.Text   = "批次数";
         }
+
         RoundPlot.Refresh();
     }
 
     private void UpdateTimeline(SimulationResult result, int[] groupOf)
     {
-        var plot    = TimelinePlot.Plot;
+        var plot = TimelinePlot.Plot;
         plot.Clear();
-        var config  = result.Config;
-        long perCycle   = config.DrawsPerCycle();
-        int shownCycles = TimelineTwoCycles.IsChecked == true
-            ? Math.Min(2, config.Cycles)
+        var config   = result.Config;
+        var perCycle = config.DrawsPerCycle();
+        var shownCycles = TimelineTwoCycles.IsChecked == true
+            ? Math.Min(2,             config.Cycles)
             : Math.Min(config.Cycles, (int)Math.Max(1, TimelinePointBudget / perCycle));
-        bool truncated  = shownCycles < config.Cycles;
+        var truncated = shownCycles < config.Cycles;
         TimelineNote.Text = truncated
             ? $"仅显示前 {shownCycles}/{config.Cycles} 周期 (共 {perCycle * config.Cycles:N0} 点)"
             : "";
-        long shown = (long)shownCycles * perCycle;
+        var shown = (long)shownCycles * perCycle;
 
-        int groups = config.GenderGroupSizes.Length;
-        var xs = Enumerable.Range(0, groups).Select(_ => new List<double>()).ToArray();
-        var ys = Enumerable.Range(0, groups).Select(_ => new List<double>()).ToArray();
-        for (int i = 0; i < shown && i < result.Entries.Count; i++)
+        var groups = config.GenderGroupSizes.Length;
+        var xs     = Enumerable.Range(0, groups).Select(_ => new List<double>()).ToArray();
+        var ys     = Enumerable.Range(0, groups).Select(_ => new List<double>()).ToArray();
+        for (var i = 0; i < shown && i < result.Entries.Count; i++)
         {
             var entry = result.Entries[i];
-            int group = groupOf[entry.PickedId];
+            var group = groupOf[entry.PickedId];
             xs[group].Add(entry.GlobalIndex);
             ys[group].Add(entry.PickedId);
         }
-        for (int group = 0; group < groups; group++)
+
+        for (var group = 0; group < groups; group++)
         {
             if (xs[group].Count == 0) continue;
             var scatter = plot.Add.Scatter(xs[group].ToArray(), ys[group].ToArray());
-            scatter.LineWidth   = 0;   // 只画点不连线 (LinePattern 无 None, 用线宽 0)
-            scatter.MarkerSize  = 2;
-            scatter.Color       = Palette[group % Palette.Length];
-            scatter.LegendText  = $"组{group}";
+            scatter.LineWidth  = 0; // 只画点不连线 (LinePattern 无 None, 用线宽 0)
+            scatter.MarkerSize = 2;
+            scatter.Color      = Palette[group % Palette.Length];
+            scatter.LegendText = $"组{group}";
         }
+
         if (groups > 1)
             plot.ShowLegend();
 
         if (shownCycles <= 200)
-            for (int cycle = 1; cycle < shownCycles; cycle++)
+            for (var cycle = 1; cycle < shownCycles; cycle++)
                 plot.Add.VerticalLine(cycle * perCycle).Color = BoundaryColor;
 
         plot.Axes.Bottom.Label.Text = "全局抽取序号";
@@ -385,10 +403,11 @@ public partial class MainWindow : Window
             var signal = plot.Add.Signal(poolSizes);
             signal.Color = Palette[0];
         }
-        long perCycle = result.DrawsPerCycle;
-        int cycles    = result.Config.Cycles;
+
+        var perCycle = result.DrawsPerCycle;
+        var cycles   = result.Config.Cycles;
         if (cycles <= 400)
-            for (int cycle = 1; cycle < cycles; cycle++)
+            for (var cycle = 1; cycle < cycles; cycle++)
                 plot.Add.VerticalLine(cycle * perCycle).Color = BoundaryColor;
 
         plot.Axes.Bottom.Label.Text = "全局抽取序号";
@@ -406,7 +425,7 @@ public partial class MainWindow : Window
     /// <summary>同一人两次相邻被抽的间隔 (跨周期, 按全局序号), 与指标表口径一致。</summary>
     private static List<double> ComputeGaps(SimulationResult result)
     {
-        int n = result.Config.StudentCount;
+        var n        = result.Config.StudentCount;
         var gaps     = new List<double>();
         var lastSeen = new int[n];
         Array.Fill(lastSeen, -1);
@@ -416,15 +435,16 @@ public partial class MainWindow : Window
                 gaps.Add(entry.GlobalIndex - lastSeen[entry.PickedId]);
             lastSeen[entry.PickedId] = entry.GlobalIndex;
         }
+
         return gaps;
     }
 
     /// <summary>每个批次 (BatchSlot 从 0 重数的一段) 内不同 PickedId 的数量。</summary>
     private static List<int> BatchDistinctCounts(IReadOnlyList<DrawLogEntry> entries)
     {
-        var counts = new List<int>();
-        var seen   = new HashSet<int>();
-        int prevSlot = -1;
+        var counts   = new List<int>();
+        var seen     = new HashSet<int>();
+        var prevSlot = -1;
         foreach (var entry in entries)
         {
             if (entry.BatchSlot <= prevSlot)
@@ -432,9 +452,11 @@ public partial class MainWindow : Window
                 counts.Add(seen.Count);
                 seen.Clear();
             }
+
             seen.Add(entry.PickedId);
             prevSlot = entry.BatchSlot;
         }
+
         if (seen.Count > 0)
             counts.Add(seen.Count);
         return counts;
@@ -449,14 +471,16 @@ public partial class MainWindow : Window
             ErrorText.Text = "还没有可导出的仿真结果";
             return;
         }
-        var top = TopLevel.GetTopLevel(this);
+
+        var top = GetTopLevel(this);
         if (top is null) return;
         var file = await top.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Title             = "导出仿真日志",
-            SuggestedFileName = $"drawlog_seed{_result.Config.Seed}_n{_result.Config.StudentCount}_cap{_result.Config.Cap}_c{_result.Config.Cycles}.csv",
-            DefaultExtension  = "csv",
-            FileTypeChoices   = [new FilePickerFileType("CSV") { Patterns = ["*.csv"] }],
+            Title = "导出仿真日志",
+            SuggestedFileName =
+                $"drawlog_seed{_result.Config.Seed}_n{_result.Config.StudentCount}_cap{_result.Config.Cap}_c{_result.Config.Cycles}.csv",
+            DefaultExtension = "csv",
+            FileTypeChoices  = [new FilePickerFileType("CSV") { Patterns = ["*.csv"] }]
         });
         if (file is null) return;
         try
@@ -473,5 +497,6 @@ public partial class MainWindow : Window
     }
 
     private sealed record HardRow(string Name, string Mark, string Expected, string Actual);
+
     private sealed record StatRow(string Name, string Value);
 }

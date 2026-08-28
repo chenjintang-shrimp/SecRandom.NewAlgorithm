@@ -34,6 +34,7 @@ public sealed record SimulationConfig
     /// 单元素数组 = 不做性别均衡。
     /// </summary>
     public int[] GenderGroupSizes { get; init; } = [20, 20];
+
     /// <summary>
     /// 逐人倍率覆盖 (Id → 爆率倍率)；未覆盖的学生 Multiplier = 1.0。
     /// 倍率通过 share = Multiplier ÷ ΣMultiplier 长期精确生效。
@@ -43,9 +44,9 @@ public sealed record SimulationConfig
     public void Validate()
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(StudentCount, 1);
-        ArgumentOutOfRangeException.ThrowIfLessThan(Cap, 1);
-        ArgumentOutOfRangeException.ThrowIfLessThan(Cycles, 1);
-        ArgumentOutOfRangeException.ThrowIfLessThan(BatchSize, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(Cap,          1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(Cycles,       1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(BatchSize,    1);
         if (RandomFloor is < 0.0 or > 1.0)
             throw new ArgumentOutOfRangeException(nameof(RandomFloor), "RandomFloor 须在 [0, 1] 内");
         if (PersonalHorizonRounds < 0.0)
@@ -54,13 +55,14 @@ public sealed record SimulationConfig
             throw new ArgumentOutOfRangeException(nameof(GenderHorizonPerPick));
         if (GenderGroupSizes.Length == 0)
             throw new ArgumentException("至少需要一个分组", nameof(GenderGroupSizes));
-        int sum = 0;
-        foreach (int size in GenderGroupSizes)
+        var sum = 0;
+        foreach (var size in GenderGroupSizes)
         {
             if (size < 0)
                 throw new ArgumentException("分组人数不能为负", nameof(GenderGroupSizes));
             sum += size;
         }
+
         if (sum != StudentCount)
             throw new ArgumentException(
                 $"分组人数之和 {sum} 必须等于学生总数 {StudentCount}", nameof(GenderGroupSizes));
@@ -78,13 +80,14 @@ public sealed record SimulationConfig
     public StudentMetaData[] BuildStudents()
     {
         var students = new StudentMetaData[StudentCount];
-        int id = 0;
-        for (int group = 0; group < GenderGroupSizes.Length; group++)
-        for (int i = 0; i < GenderGroupSizes[group]; i++, id++)
+        var id       = 0;
+        for (var group = 0; group < GenderGroupSizes.Length; group++)
+        for (var i = 0; i < GenderGroupSizes[group]; i++, id++)
         {
-            double multiplier = MultiplierOverrides.GetValueOrDefault(id, 1.0);
+            var multiplier = MultiplierOverrides.GetValueOrDefault(id, 1.0);
             students[id] = new StudentMetaData(id, EffectiveCap(multiplier), multiplier, [group]);
         }
+
         return students;
     }
 
@@ -92,24 +95,30 @@ public sealed record SimulationConfig
     /// 生效 Cap = ⌈基础 Cap × 倍率⌉：倍率越高同期可抽次数上限同步放大，
     /// 两个参数因此正交（倍率管长期频率，Cap 只做防失控阀门）。
     /// </summary>
-    public int EffectiveCap(double multiplier) => Math.Max(1, (int)Math.Ceiling(Cap * multiplier));
+    public int EffectiveCap(double multiplier)
+    {
+        return Math.Max(1, (int)Math.Ceiling(Cap * multiplier));
+    }
 
     /// <summary>每周期应抽总数 = Σ⌈Cap × 倍率ᵢ⌉。</summary>
     public long DrawsPerCycle()
     {
         long total = 0;
-        for (int id = 0; id < StudentCount; id++)
+        for (var id = 0; id < StudentCount; id++)
             total += EffectiveCap(MultiplierOverrides.GetValueOrDefault(id, 1.0));
         return total;
     }
 
-    public WeightSettings BuildWeightSettings() => new()
+    public WeightSettings BuildWeightSettings()
     {
-        PersonalHorizonRounds = PersonalHorizonRounds,
-        RandomFloor           = RandomFloor,
-        // 只有一个组时维度均衡无意义, 直接关闭
-        Dimensions = GenderGroupSizes.Length > 1
-            ? [new BalanceDimension(0, GenderHorizonPerPick)]
-            : [],
-    };
+        return new WeightSettings
+        {
+            PersonalHorizonRounds = PersonalHorizonRounds,
+            RandomFloor           = RandomFloor,
+            // 只有一个组时维度均衡无意义, 直接关闭
+            Dimensions = GenderGroupSizes.Length > 1
+                ? [new BalanceDimension(0, GenderHorizonPerPick)]
+                : []
+        };
+    }
 }

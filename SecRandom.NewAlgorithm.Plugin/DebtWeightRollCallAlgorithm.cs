@@ -24,12 +24,12 @@ public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options
     // Reuses the host's 内幕设置 attached-settings id so the existing per-student probability
     // control drives this algorithm's rigging without shipping another UI.
     private static readonly Guid s_behindSceneId = Guid.Parse(GlobalConstants.BehindSceneAttachedSettings);
-    private static readonly Guid s_capId = Guid.Parse(NewAlgorithmStudentAttachedSettings.AttachedSettingsId);
+    private static readonly Guid s_capId         = Guid.Parse(NewAlgorithmStudentAttachedSettings.AttachedSettingsId);
 
     // Label array is fixed as [group, gender]; the dimensions actually fed to the engine
     // follow the host's fair-draw toggles so settings keep working as users expect.
-    private static readonly BalanceDimension s_groupDimension = new(Dimension: 0);
-    private static readonly BalanceDimension s_genderDimension = new(Dimension: 1);
+    private static readonly BalanceDimension s_groupDimension  = new(0);
+    private static readonly BalanceDimension s_genderDimension = new(1);
 
     // 必中 (p = 100) cannot pre-allocate a slot through a weights-only interface; a weight this
     // large makes non-guaranteed candidates lose every draw position it participates in.
@@ -38,11 +38,11 @@ public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options
     private sealed record StudentLever(double Multiplier, int? BaseCap, bool Excluded, bool Guaranteed);
 
     public IReadOnlyList<WeightedCandidate<Student>> BuildCandidates(
-        DrawEngine engine,
-        IReadOnlyList<Student> eligibleCandidates,
+        DrawEngine                            engine,
+        IReadOnlyList<Student>                eligibleCandidates,
         IReadOnlyDictionary<Student, History> history,
-        FairDrawPolicySnapshot fairSettings,
-        string courseName)
+        FairDrawPolicySnapshot                fairSettings,
+        string                                courseName)
     {
         var poolSize = eligibleCandidates.Count;
         if (poolSize == 0)
@@ -52,20 +52,20 @@ public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options
         var settings = new WeightSettings
         {
             PersonalHorizonRounds = opts.PersonalHorizonRounds,
-            RandomFloor = opts.RandomFloor,
-            Dimensions = BuildDimensions(fairSettings, opts.DimensionHorizonPerPick)
+            RandomFloor           = opts.RandomFloor,
+            Dimensions            = BuildDimensions(fairSettings, opts.DimensionHorizonPerPick)
         };
 
         // Pass 1: resolve levers. Multiplier-rigged students stay in the pool (their share enters
         // the debt engine); only excluded/guaranteed/saturated students leave it.
-        var levers = new StudentLever?[poolSize];
-        var cycleCounts = new int[poolSize];
+        var levers             = new StudentLever?[poolSize];
+        var cycleCounts        = new int[poolSize];
         var fairOrdinalByIndex = new int[poolSize];
-        var fairIndexes = new List<int>(poolSize);
+        var fairIndexes        = new List<int>(poolSize);
         for (var i = 0; i < poolSize; i++)
         {
             var student = eligibleCandidates[i];
-            cycleCounts[i] = history.TryGetValue(student, out var record) ? Math.Max(0, record.TotalCount) : 0;
+            cycleCounts[i]        = history.TryGetValue(student, out var record) ? Math.Max(0, record.TotalCount) : 0;
             fairOrdinalByIndex[i] = -1;
 
             var lever = ResolveLever(student);
@@ -82,8 +82,8 @@ public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options
         }
 
         // Pass 2: compute fair weights over the remaining pool only.
-        var fairCount = fairIndexes.Count;
-        var fairLabels = BuildLabelAxes(eligibleCandidates, fairIndexes);
+        var      fairCount  = fairIndexes.Count;
+        var      fairLabels = BuildLabelAxes(eligibleCandidates, fairIndexes);
         double[] fairProbabilities;
         if (fairCount == 0)
         {
@@ -91,7 +91,7 @@ public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options
         }
         else
         {
-            var pool = new StudentMetaData[fairCount];
+            var pool      = new StudentMetaData[fairCount];
             var histories = new DrawHistory[fairCount];
             for (var f = 0; f < fairCount; f++)
             {
@@ -105,7 +105,7 @@ public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options
 
             try
             {
-                var result = FairDrawWeights.Compute(pool, histories, settings, batchSize: 1);
+                var result = FairDrawWeights.Compute(pool, histories, settings, 1);
                 fairProbabilities = FairDrawWeights.ToProbabilities(result, settings);
             }
             catch (ArgumentException)
@@ -118,7 +118,7 @@ public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options
         }
 
         // Pass 3: assemble weights in original candidate order.
-        var candidates = new WeightedCandidate<Student>[poolSize];
+        var candidates        = new WeightedCandidate<Student>[poolSize];
         var averageFairWeight = fairCount > 0 ? fairProbabilities.Sum() / fairCount : 1.0 / poolSize;
         for (var i = 0; i < poolSize; i++)
         {
@@ -131,7 +131,8 @@ public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options
 
             if (lever.Guaranteed)
             {
-                candidates[i] = new WeightedCandidate<Student> { Candidate = eligibleCandidates[i], Weight = GuaranteedWeight };
+                candidates[i] = new WeightedCandidate<Student>
+                    { Candidate = eligibleCandidates[i], Weight = GuaranteedWeight };
                 continue;
             }
 
@@ -152,6 +153,7 @@ public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options
                     : weight
             };
         }
+
         return candidates;
     }
 
@@ -161,9 +163,9 @@ public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options
     /// </summary>
     private static StudentLever ResolveLever(Student student)
     {
-        var scene = student.GetAttachedObject<BehindSceneAttachedSettings>(s_behindSceneId);
+        var scene      = student.GetAttachedObject<BehindSceneAttachedSettings>(s_behindSceneId);
         var multiplier = 1.0;
-        var excluded = false;
+        var excluded   = false;
         var guaranteed = false;
         if (scene is { IsAttachSettingsEnabled: true })
         {
@@ -176,8 +178,8 @@ public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options
                 multiplier = probability;
         }
 
-        var capSettings = student.GetAttachedObject<NewAlgorithmStudentAttachedSettings>(s_capId);
-        int? baseCap = null;
+        var  capSettings = student.GetAttachedObject<NewAlgorithmStudentAttachedSettings>(s_capId);
+        int? baseCap     = null;
         if (capSettings is { IsAttachSettingsEnabled: true })
         {
             var cap = capSettings.BaseCap;
@@ -205,7 +207,7 @@ public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options
     /// </summary>
     private static (int[] Group, int[] Gender) BuildLabelAxes(
         IReadOnlyList<Student> students,
-        IReadOnlyList<int> fairIndexes)
+        IReadOnlyList<int>     fairIndexes)
     {
         return (
             BuildLabelAxis(students, fairIndexes, static student => student.Group),
@@ -214,11 +216,11 @@ public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options
 
     private static int[] BuildLabelAxis(
         IReadOnlyList<Student> students,
-        IReadOnlyList<int> fairIndexes,
-        Func<Student, string> selector)
+        IReadOnlyList<int>     fairIndexes,
+        Func<Student, string>  selector)
     {
         var indexes = new Dictionary<string, int>(StringComparer.Ordinal);
-        var labels = new int[fairIndexes.Count];
+        var labels  = new int[fairIndexes.Count];
         for (var f = 0; f < fairIndexes.Count; f++)
         {
             var key = selector(students[fairIndexes[f]]) ?? string.Empty;
@@ -227,8 +229,10 @@ public sealed class DebtWeightRollCallAlgorithm(NewAlgorithmOptionsStore options
                 label = indexes.Count;
                 indexes.Add(key, label);
             }
+
             labels[f] = label;
         }
+
         return labels;
     }
 }

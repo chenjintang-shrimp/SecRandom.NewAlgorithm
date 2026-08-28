@@ -56,7 +56,7 @@ public static class DrawLog
 
     public static void WriteCsvFile(string path, IReadOnlyList<DrawLogEntry> entries)
     {
-        using var writer = new StreamWriter(path, append: false);
+        using var writer = new StreamWriter(path, false);
         WriteCsv(writer, entries);
     }
 }

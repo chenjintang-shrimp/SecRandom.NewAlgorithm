@@ -20,7 +20,7 @@ namespace SecRandom.NewAlgorithm;
 /// </param>
 public sealed record StudentMetaData(int Id, int Cap, double Multiplier, int[] Labels)
 {
-    public StudentMetaData(int id, double multiplier) : this(Id: id, Cap: 0, Multiplier: multiplier, []) { }
+    public StudentMetaData(int id, double multiplier) : this(id, 0, multiplier, []) { }
 }
 
 /// <summary>
@@ -62,7 +62,6 @@ public sealed record WeightSettings
     /// </summary>
     public BalanceDimension[] Dimensions { get; init; } = [];
 }
-
 
 /// <summary>
 /// 单个学生的权重附加中间量

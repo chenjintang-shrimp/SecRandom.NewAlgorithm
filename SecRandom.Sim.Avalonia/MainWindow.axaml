@@ -15,47 +15,57 @@
                     <Button x:Name="RunButton" Content="运行仿真"
                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                             Padding="0,10" FontSize="15" FontWeight="SemiBold"
-                            Click="OnRunClicked"/>
-                    <ProgressBar x:Name="RunProgress" Minimum="0" Maximum="10" Value="0" Height="8"/>
-                    <TextBlock x:Name="StatusText" FontSize="12" Foreground="#666666" TextWrapping="Wrap"/>
-                    <TextBlock x:Name="ErrorText" FontSize="12" Foreground="#C0392B" TextWrapping="Wrap"/>
+                            Click="OnRunClicked" />
+                    <ProgressBar x:Name="RunProgress" Minimum="0" Maximum="10" Value="0" Height="8" />
+                    <TextBlock x:Name="StatusText" FontSize="12" Foreground="#666666" TextWrapping="Wrap" />
+                    <TextBlock x:Name="ErrorText" FontSize="12" Foreground="#C0392B" TextWrapping="Wrap" />
                 </StackPanel>
 
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Spacing="6">
-                        <TextBlock Text="参数" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,4"/>
+                        <TextBlock Text="参数" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,4" />
 
-                        <TextBlock Text="学生数" FontSize="12"/>
-                        <NumericUpDown x:Name="NuStudents" Minimum="1" Maximum="10000" Increment="1" Value="40" FormatString="0"/>
+                        <TextBlock Text="学生数" FontSize="12" />
+                        <NumericUpDown x:Name="NuStudents" Minimum="1" Maximum="10000" Increment="1" Value="40"
+                                       FormatString="0" />
 
-                        <TextBlock Text="Cap (每人每周期上限)" FontSize="12"/>
-                        <NumericUpDown x:Name="NuCap" Minimum="1" Maximum="100" Increment="1" Value="1" FormatString="0"/>
+                        <TextBlock Text="Cap (每人每周期上限)" FontSize="12" />
+                        <NumericUpDown x:Name="NuCap" Minimum="1" Maximum="100" Increment="1" Value="1"
+                                       FormatString="0" />
 
-                        <TextBlock Text="总抽取数 (按 学生数×Cap 自动折算周期)" FontSize="12" TextWrapping="Wrap"/>
-                        <NumericUpDown x:Name="NuTotalDraws" Minimum="1" Maximum="2000000" Increment="100" Value="400" FormatString="0"/>
-                        <TextBlock x:Name="CycleInfoText" FontSize="11" Foreground="#888888" TextWrapping="Wrap"/>
+                        <TextBlock Text="总抽取数 (按 学生数×Cap 自动折算周期)" FontSize="12" TextWrapping="Wrap" />
+                        <NumericUpDown x:Name="NuTotalDraws" Minimum="1" Maximum="2000000" Increment="100" Value="400"
+                                       FormatString="0" />
+                        <TextBlock x:Name="CycleInfoText" FontSize="11" Foreground="#888888" TextWrapping="Wrap" />
 
-                        <TextBlock Text="BatchSize (每次点击人数)" FontSize="12"/>
-                        <NumericUpDown x:Name="NuBatch" Minimum="1" Maximum="500" Increment="1" Value="1" FormatString="0"/>
+                        <TextBlock Text="BatchSize (每次点击人数)" FontSize="12" />
+                        <NumericUpDown x:Name="NuBatch" Minimum="1" Maximum="500" Increment="1" Value="1"
+                                       FormatString="0" />
 
-                        <TextBlock Text="Seed (固定便于复现)" FontSize="12"/>
-                        <NumericUpDown x:Name="NuSeed" Minimum="-1000000" Maximum="1000000" Increment="1" Value="1" FormatString="0"/>
+                        <TextBlock Text="Seed (固定便于复现)" FontSize="12" />
+                        <NumericUpDown x:Name="NuSeed" Minimum="-1000000" Maximum="1000000" Increment="1" Value="1"
+                                       FormatString="0" />
 
-                        <TextBlock Text="PersonalHorizonRounds (个人视野)" FontSize="12"/>
-                        <NumericUpDown x:Name="NuHorizon" Minimum="0" Maximum="64" Increment="0.5" Value="2" FormatString="0.0"/>
+                        <TextBlock Text="PersonalHorizonRounds (个人视野)" FontSize="12" />
+                        <NumericUpDown x:Name="NuHorizon" Minimum="0" Maximum="64" Increment="0.5" Value="2"
+                                       FormatString="0.0" />
 
-                        <TextBlock Text="GenderHorizonPerPick (性别视野)" FontSize="12"/>
-                        <NumericUpDown x:Name="NuGenderHorizon" Minimum="0" Maximum="64" Increment="0.1" Value="0.8" FormatString="0.0"/>
+                        <TextBlock Text="GenderHorizonPerPick (性别视野)" FontSize="12" />
+                        <NumericUpDown x:Name="NuGenderHorizon" Minimum="0" Maximum="64" Increment="0.1" Value="0.8"
+                                       FormatString="0.0" />
 
-                        <TextBlock Text="RandomFloor (随机保底)" FontSize="12"/>
-                        <NumericUpDown x:Name="NuFloor" Minimum="0" Maximum="1" Increment="0.05" Value="0.1" FormatString="0.00"/>
+                        <TextBlock Text="RandomFloor (随机保底)" FontSize="12" />
+                        <NumericUpDown x:Name="NuFloor" Minimum="0" Maximum="1" Increment="0.05" Value="0.1"
+                                       FormatString="0.00" />
 
-                        <TextBlock Text="标签构成 (各组人数, 逗号分隔; 总和须 = 学生数)" FontSize="12" TextWrapping="Wrap"/>
-                        <TextBox x:Name="GenderGroupsBox" Text="20,20" PlaceholderText="例: 20,20 或 10,15,15"/>
-                        <TextBlock Text="逐人倍率覆盖 (Id, -1 = 不覆盖)" FontSize="12"/>
-                        <NumericUpDown x:Name="NuMultId" Minimum="-1" Maximum="10000" Increment="1" Value="-1" FormatString="0"/>
-                        <TextBlock Text="倍率 k (1.0 = 基准, 2.0 = 频率翻倍)" FontSize="12"/>
-                        <NumericUpDown x:Name="NuMultK" Minimum="0.01" Maximum="1000" Increment="0.5" Value="1" FormatString="0.00"/>
+                        <TextBlock Text="标签构成 (各组人数, 逗号分隔; 总和须 = 学生数)" FontSize="12" TextWrapping="Wrap" />
+                        <TextBox x:Name="GenderGroupsBox" Text="20,20" PlaceholderText="例: 20,20 或 10,15,15" />
+                        <TextBlock Text="逐人倍率覆盖 (Id, -1 = 不覆盖)" FontSize="12" />
+                        <NumericUpDown x:Name="NuMultId" Minimum="-1" Maximum="10000" Increment="1" Value="-1"
+                                       FormatString="0" />
+                        <TextBlock Text="倍率 k (1.0 = 基准, 2.0 = 频率翻倍)" FontSize="12" />
+                        <NumericUpDown x:Name="NuMultK" Minimum="0.01" Maximum="1000" Increment="0.5" Value="1"
+                                       FormatString="0.00" />
                     </StackPanel>
                 </ScrollViewer>
             </DockPanel>
@@ -68,28 +78,28 @@
             <TabItem Header="Metrics">
                 <ScrollViewer>
                     <StackPanel Margin="8" Spacing="10">
-                        <TextBlock Text="硬保证" FontSize="15" FontWeight="SemiBold"/>
+                        <TextBlock Text="硬保证" FontSize="15" FontWeight="SemiBold" />
                         <TextBlock x:Name="MetricsFailNote" IsVisible="False"
                                    Text="⚠ 存在失败的硬保证, 算法实现有问题, 先看这里"
-                                   Foreground="#C0392B" FontWeight="SemiBold"/>
+                                   Foreground="#C0392B" FontWeight="SemiBold" />
                         <DataGrid x:Name="HardGrid" AutoGenerateColumns="False" IsReadOnly="True"
                                   MinHeight="150" MaxHeight="260"
                                   GridLinesVisibility="Horizontal" CanUserResizeColumns="True">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="硬保证" Binding="{Binding Name}" Width="2.2*"/>
-                                <DataGridTextColumn Header="状态" Binding="{Binding Mark}" Width="50"/>
-                                <DataGridTextColumn Header="期望" Binding="{Binding Expected}" Width="2*"/>
-                                <DataGridTextColumn Header="实际" Binding="{Binding Actual}" Width="2*"/>
+                                <DataGridTextColumn Header="硬保证" Binding="{Binding Name}" Width="2.2*" />
+                                <DataGridTextColumn Header="状态" Binding="{Binding Mark}" Width="50" />
+                                <DataGridTextColumn Header="期望" Binding="{Binding Expected}" Width="2*" />
+                                <DataGridTextColumn Header="实际" Binding="{Binding Actual}" Width="2*" />
                             </DataGrid.Columns>
                         </DataGrid>
 
-                        <TextBlock Text="统计指标" FontSize="15" FontWeight="SemiBold" Margin="0,12,0,0"/>
+                        <TextBlock Text="统计指标" FontSize="15" FontWeight="SemiBold" Margin="0,12,0,0" />
                         <DataGrid x:Name="StatGrid" AutoGenerateColumns="False" IsReadOnly="True"
                                   MinHeight="160" MaxHeight="320"
                                   GridLinesVisibility="Horizontal" CanUserResizeColumns="True">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="指标" Binding="{Binding Name}" Width="2.2*"/>
-                                <DataGridTextColumn Header="值" Binding="{Binding Value}" Width="3*"/>
+                                <DataGridTextColumn Header="指标" Binding="{Binding Name}" Width="2.2*" />
+                                <DataGridTextColumn Header="值" Binding="{Binding Value}" Width="3*" />
                             </DataGrid.Columns>
                         </DataGrid>
                     </StackPanel>
@@ -101,25 +111,25 @@
                 <Grid ColumnDefinitions="*,*,*" Margin="8">
                     <DockPanel Grid.Column="0" Margin="4">
                         <TextBlock DockPanel.Dock="Top" Text="每人总被抽次数 (应完全平 = 硬保证成立)"
-                                   FontSize="12" TextWrapping="Wrap" Margin="0,0,0,4"/>
-                        <sp:AvaPlot x:Name="CountsPlot"/>
+                                   FontSize="12" TextWrapping="Wrap" Margin="0,0,0,4" />
+                        <sp:AvaPlot x:Name="CountsPlot" />
                     </DockPanel>
                     <DockPanel Grid.Column="1" Margin="4">
                         <TextBlock DockPanel.Dock="Top" Text="同一人两次被抽间隔直方图 (Cap ≥ 2 时有效)"
-                                   FontSize="12" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                   FontSize="12" TextWrapping="Wrap" Margin="0,0,0,4" />
                         <Grid>
-                            <sp:AvaPlot x:Name="GapPlot"/>
+                            <sp:AvaPlot x:Name="GapPlot" />
                             <Border x:Name="GapOverlay" IsVisible="False" Background="#F5F5F5">
                                 <TextBlock Text="Cap = 1, 每人每周期只抽一次, 无间隔数据"
                                            HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           TextWrapping="Wrap" Foreground="#666666"/>
+                                           TextWrapping="Wrap" Foreground="#666666" />
                             </Border>
                         </Grid>
                     </DockPanel>
                     <DockPanel Grid.Column="2" Margin="4">
                         <TextBlock DockPanel.Dock="Top" x:Name="RoundHeader" Text="批次内不同人数直方图 (应恒等于 BatchSize)"
-                                   FontSize="12" TextWrapping="Wrap" Margin="0,0,0,4"/>
-                        <sp:AvaPlot x:Name="RoundPlot"/>
+                                   FontSize="12" TextWrapping="Wrap" Margin="0,0,0,4" />
+                        <sp:AvaPlot x:Name="RoundPlot" />
                     </DockPanel>
                 </Grid>
             </TabItem>
@@ -129,11 +139,11 @@
                 <DockPanel Margin="8">
                     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="12" Margin="0,0,0,4">
                         <TextBlock x:Name="TimelineNote" FontSize="12"
-                                   Foreground="#B36A00" VerticalAlignment="Center"/>
+                                   Foreground="#B36A00" VerticalAlignment="Center" />
                         <CheckBox x:Name="TimelineTwoCycles" Content="只显示前 2 周期"
-                                  VerticalAlignment="Center" Click="OnTimelineTwoCyclesClicked"/>
+                                  VerticalAlignment="Center" Click="OnTimelineTwoCyclesClicked" />
                     </StackPanel>
-                    <sp:AvaPlot x:Name="TimelinePlot"/>
+                    <sp:AvaPlot x:Name="TimelinePlot" />
                 </DockPanel>
             </TabItem>
 
@@ -141,8 +151,8 @@
             <TabItem Header="Pool">
                 <DockPanel Margin="8">
                     <TextBlock DockPanel.Dock="Top" FontSize="12" Foreground="#666666" Margin="0,0,0,4"
-                               Text="绘制前的候选池大小随时间; 红竖线 = 周期边界。预期形状: 前段缓慢离池, 末尾快速排空"/>
-                    <sp:AvaPlot x:Name="PoolPlot"/>
+                               Text="绘制前的候选池大小随时间; 红竖线 = 周期边界。预期形状: 前段缓慢离池, 末尾快速排空" />
+                    <sp:AvaPlot x:Name="PoolPlot" />
                 </DockPanel>
             </TabItem>
 
@@ -150,11 +160,11 @@
             <TabItem Header="Log">
                 <DockPanel Margin="8">
                     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="12" Margin="0,0,0,6">
-                        <Button x:Name="ExportButton" Content="导出 CSV…" Click="OnExportCsvClicked"/>
-                        <TextBlock x:Name="LogCountText" VerticalAlignment="Center" FontSize="12" Foreground="#666666"/>
+                        <Button x:Name="ExportButton" Content="导出 CSV…" Click="OnExportCsvClicked" />
+                        <TextBlock x:Name="LogCountText" VerticalAlignment="Center" FontSize="12" Foreground="#666666" />
                     </StackPanel>
                     <DataGrid x:Name="LogGrid" AutoGenerateColumns="True" IsReadOnly="True"
-                              GridLinesVisibility="Horizontal" FontFamily="Consolas"/>
+                              GridLinesVisibility="Horizontal" FontFamily="Consolas" />
                 </DockPanel>
             </TabItem>
 

@@ -11,17 +11,18 @@ public sealed class NewAlgorithmOptionsStore
 {
     /// <summary>Plugin settings page and the draw algorithm both read/write through this bounds.</summary>
     public const double MinHorizonRounds = 0.1;
-    public const double MaxHorizonRounds = 100.0;
-    public const double MinRandomFloor = 0.0;
-    public const double MaxRandomFloor = 0.99;
+
+    public const double MaxHorizonRounds  = 100.0;
+    public const double MinRandomFloor    = 0.0;
+    public const double MaxRandomFloor    = 0.99;
     public const double MinHorizonPerPick = 0.05;
     public const double MaxHorizonPerPick = 100.0;
 
     private static readonly JsonSerializerOptions s_jsonOptions = new() { WriteIndented = true };
 
-    private readonly object _gate = new();
-    private readonly string _filePath;
-    private NewAlgorithmOptions? _options;
+    private readonly object               _gate = new();
+    private readonly string               _filePath;
+    private          NewAlgorithmOptions? _options;
 
     public NewAlgorithmOptionsStore(string folder)
     {
@@ -34,7 +35,9 @@ public sealed class NewAlgorithmOptionsStore
         get
         {
             lock (_gate)
+            {
                 return _options ??= Load();
+            }
         }
     }
 
@@ -42,10 +45,10 @@ public sealed class NewAlgorithmOptionsStore
     {
         lock (_gate)
         {
-            var snapshot = _options ?? new NewAlgorithmOptions();
+            var snapshot  = _options ?? new NewAlgorithmOptions();
             var temporary = _filePath + ".tmp";
             File.WriteAllText(temporary, JsonSerializer.Serialize(snapshot, s_jsonOptions));
-            File.Move(temporary, _filePath, overwrite: true);
+            File.Move(temporary, _filePath, true);
         }
     }
 
@@ -74,9 +77,11 @@ public sealed class NewAlgorithmOptionsStore
 
     private static void Sanitize(NewAlgorithmOptions options)
     {
-        options.PersonalHorizonRounds = ClampFinite(options.PersonalHorizonRounds, MinHorizonRounds, MaxHorizonRounds, 2.0);
+        options.PersonalHorizonRounds =
+            ClampFinite(options.PersonalHorizonRounds, MinHorizonRounds, MaxHorizonRounds, 2.0);
         options.RandomFloor = ClampFinite(options.RandomFloor, MinRandomFloor, MaxRandomFloor, 0.10);
-        options.DimensionHorizonPerPick = ClampFinite(options.DimensionHorizonPerPick, MinHorizonPerPick, MaxHorizonPerPick, 0.8);
+        options.DimensionHorizonPerPick =
+            ClampFinite(options.DimensionHorizonPerPick, MinHorizonPerPick, MaxHorizonPerPick, 0.8);
     }
 
     private static double ClampFinite(double value, double min, double max, double fallback)
